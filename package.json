@@ -1,0 +1,27 @@
+{
+  "name": "elm-pwa",
+  "version": "1.0.0",
+  "description": "PWA integration for Elm apps: service worker lifecycle, install prompt, online/offline detection",
+  "keywords": [
+    "elm",
+    "pwa"
+  ],
+  "license": "BSD-3-Clause",
+  "author": "mpizenberg",
+  "type": "module",
+  "main": "js/src/index.js",
+  "exports": {
+    ".": "./js/src/index.js",
+    "./build": "./js/src/build.js"
+  },
+  "files": [
+    "js/src"
+  ],
+  "scripts": {
+    "postinstall": "elm-tooling install"
+  },
+  "devDependencies": {
+    "elm-review": "^2.13.5",
+    "elm-tooling": "^1.15.1"
+  }
+}

@@ -1,0 +1,191 @@
+# elm-pwa
+
+PWA integration for Elm apps via ports.
+
+Provides an Elm module and a JS companion for connecting browser PWA APIs
+(service worker lifecycle, install prompt, online/offline detection) to your Elm app
+through a single pair of ports.
+
+## Setup
+
+### 1. Define two ports in your Elm app
+
+```elm
+port pwaIn : (Decode.Value -> msg) -> Sub msg
+
+port pwaOut : Encode.Value -> Cmd msg
+```
+
+### 2. Wire the Elm module
+
+```elm
+import Pwa
+
+type Msg
+    = GotPwaEvent (Result Decode.Error Pwa.Event)
+    | AcceptUpdate
+    | RequestInstall
+
+subscriptions _ =
+    pwaIn (Pwa.decodeEvent >> GotPwaEvent)
+
+update msg model =
+    case msg of
+        GotPwaEvent (Ok event) ->
+            case event of
+                Pwa.ConnectionChanged online ->
+                    ( { model | isOnline = online }, Cmd.none )
+
+                Pwa.UpdateAvailable ->
+                    ( { model | updateAvailable = True }, Cmd.none )
+
+                Pwa.InstallAvailable ->
+                    ( { model | installAvailable = True }, Cmd.none )
+
+                Pwa.Installed ->
+                    ( { model | installAvailable = False }, Cmd.none )
+
+        GotPwaEvent (Err _) ->
+            ( model, Cmd.none )
+
+        AcceptUpdate ->
+            ( model, Pwa.acceptUpdate pwaOut )
+
+        RequestInstall ->
+            ( model, Pwa.requestInstall pwaOut )
+```
+
+### 3. Initialize the JS side
+
+```javascript
+import { init } from "elm-pwa";
+
+var app = Elm.Main.init({
+  node: document.getElementById("app"),
+  flags: navigator.onLine,
+});
+
+init({
+  ports: {
+    pwaIn: app.ports.pwaIn,
+    pwaOut: app.ports.pwaOut,
+  },
+});
+```
+
+### 4. Generate the service worker
+
+The package provides a `generateSW` function that returns complete service worker
+source code as a string. It has no dependencies — it works with Node.js, Deno, and Bun.
+
+```javascript
+// build-sw.mjs
+import { generateSW } from "elm-pwa/build";
+import { writeFileSync } from "node:fs";
+
+writeFileSync(
+  "static/sw.js",
+  generateSW({
+    cacheName: "my-app-v1",
+    precacheUrls: [
+      "/",
+      "/elm.js",
+      "/main.js",
+      "/style.css",
+      "/manifest.webmanifest",
+    ],
+  }),
+);
+```
+
+Run it as part of your build:
+
+```sh
+node build-sw.mjs
+```
+
+Bump `cacheName` on each deploy to trigger the update flow and purge old caches.
+
+### 5. Add a web app manifest
+
+Create `manifest.webmanifest` with at least:
+
+```json
+{
+  "name": "My App",
+  "short_name": "App",
+  "start_url": "/",
+  "display": "standalone",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
+```
+
+Link it from your HTML:
+
+```html
+<link rel="manifest" href="/manifest.webmanifest" />
+```
+
+## API
+
+### Elm (`Pwa` module)
+
+**Events** received via `pwaIn`:
+
+| Event                    | Description                                      |
+| ------------------------ | ------------------------------------------------ |
+| `ConnectionChanged Bool` | Device went online (`True`) or offline (`False`) |
+| `UpdateAvailable`        | A new service worker is installed and waiting    |
+| `InstallAvailable`       | The browser's install prompt can be triggered    |
+| `Installed`              | The app was installed                            |
+
+**Commands** sent via `pwaOut`:
+
+| Function                | Effect                                                      |
+| ----------------------- | ----------------------------------------------------------- |
+| `acceptUpdate pwaOut`   | Activates the waiting service worker (triggers page reload) |
+| `requestInstall pwaOut` | Shows the browser's install dialog (Chromium only)          |
+
+### JS (`init`)
+
+```javascript
+init({
+  ports: { pwaIn, pwaOut }, // required: the two Elm port objects
+  swUrl: "/sw.js", // optional: service worker URL (default: "/sw.js")
+});
+```
+
+### JS (`generateSW`)
+
+```javascript
+generateSW({
+  cacheName: "my-app-v1",       // required: cache version identifier
+  precacheUrls: ["/", ...],     // required: URLs to cache during install
+  navigationFallback: "/",      // optional: cached URL for navigation requests (default: "/")
+})
+// Returns: string (complete service worker source code)
+```
+
+The generated service worker uses cache-first for all static assets
+and serves the navigation fallback for all page navigations (SPA routing).
+To add network-first for API routes, edit the generated file — see the
+comment in `build.js` for an example.
+
+## How it works
+
+The package uses a tagged JSON protocol over two generic ports:
+
+**JS -> Elm** (`pwaIn`): `{ tag: "connectionChanged", online: true }`, `{ tag: "updateAvailable" }`, etc.
+
+**Elm -> JS** (`pwaOut`): `{ tag: "acceptUpdate" }`, `{ tag: "requestInstall" }`
+
+The JS `init()` function registers all browser event listeners and routes events
+through `pwaIn`. It subscribes to `pwaOut` and dispatches commands to the
+appropriate browser APIs.
+
+The service worker is a separate file (generated by `generateSW`) that handles
+caching independently. The main-page JS communicates with it via the standard
+`postMessage` / `controllerchange` APIs for the update flow.
