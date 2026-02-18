@@ -86,14 +86,37 @@ instance at `https://push.dokploy.zidev.ovh`.
 
 ### Send a test notification
 
+Once subscribed, the app shows a "Send Test Notification" form with title and body
+fields. This uses the push server's unauthenticated topic API
+(`POST /topics/{topic}/notify`) to let each device send a notification to itself
+without needing admin credentials.
+
+Each device gets a random topic (UUID) stored in `localStorage`. This topic is
+sent to the server alongside the push subscription during registration, so the
+server knows which subscriptions belong to which topic. The notify endpoint then
+fans out to all subscriptions registered under that topic — in practice just the
+current device.
+
+Fill in a title and body, click **Send**, and a system notification should appear.
+Clicking it updates "Last Notification Click" in the app.
+
+You can also trigger it from the command line:
+
+```sh
+# The topic is stored in localStorage("pushTopic") — copy it from DevTools > Application > Local Storage
+curl -X POST https://push.dokploy.zidev.ovh/topics/YOUR_TOPIC_UUID/notify \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Hello!", "body": "Push from go-notify-server"}'
+```
+
+To broadcast to **all** subscriptions (requires admin auth):
+
 ```sh
 curl -X POST https://push.dokploy.zidev.ovh/notify \
   -H "Authorization: Bearer YOUR_ADMIN_KEY" \
   -H "Content-Type: application/json" \
   -d '{"title": "Hello!", "body": "Push from go-notify-server", "url": "/test"}'
 ```
-
-A system notification should appear. Clicking it updates "Last Notification Click" in the app.
 
 ### Troubleshooting
 

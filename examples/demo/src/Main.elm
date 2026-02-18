@@ -25,7 +25,7 @@ pushServerUrl =
 -- MAIN
 
 
-main : Program Bool Model Msg
+main : Program { isOnline : Bool, topic : String } Model Msg
 main =
     Browser.element
         { init = init
@@ -60,12 +60,16 @@ type alias Model =
     , lastNotificationUrl : Maybe String
     , vapidPublicKey : Maybe String
     , pushError : Maybe String
+    , topic : String
+    , notifyTitle : String
+    , notifyBody : String
+    , notifySent : Maybe Bool
     }
 
 
-init : Bool -> ( Model, Cmd Msg )
-init isOnline =
-    ( { isOnline = isOnline
+init : { isOnline : Bool, topic : String } -> ( Model, Cmd Msg )
+init flags =
+    ( { isOnline = flags.isOnline
       , updateAvailable = False
       , installAvailable = False
       , isInstalled = False
@@ -76,6 +80,10 @@ init isOnline =
       , lastNotificationUrl = Nothing
       , vapidPublicKey = Nothing
       , pushError = Nothing
+      , topic = flags.topic
+      , notifyTitle = ""
+      , notifyBody = ""
+      , notifySent = Nothing
       }
     , fetchVapidKey
     )
@@ -98,6 +106,10 @@ type Msg
     | GotVapidKey (Result Http.Error String)
     | SubscriptionRegistered (Result Http.Error ())
     | SubscriptionUnregistered (Result Http.Error ())
+    | SetNotifyTitle String
+    | SetNotifyBody String
+    | SendTestNotification
+    | NotificationSent (Result Http.Error ())
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -122,7 +134,7 @@ update msg model =
 
                 Pwa.PushSubscription subscription ->
                     ( { model | pushSubscription = Just subscription, pushError = Nothing }
-                    , registerSubscription subscription
+                    , registerSubscription model.topic subscription
                     )
 
                 Pwa.PushUnsubscribed ->
@@ -203,6 +215,21 @@ update msg model =
         SubscriptionUnregistered _ ->
             ( model, Cmd.none )
 
+        SetNotifyTitle title ->
+            ( { model | notifyTitle = title, notifySent = Nothing }, Cmd.none )
+
+        SetNotifyBody body ->
+            ( { model | notifyBody = body, notifySent = Nothing }, Cmd.none )
+
+        SendTestNotification ->
+            ( model, sendTestNotification model.topic model.notifyTitle model.notifyBody )
+
+        NotificationSent (Ok _) ->
+            ( { model | notifySent = Just True }, Cmd.none )
+
+        NotificationSent (Err _) ->
+            ( { model | notifySent = Just False }, Cmd.none )
+
 
 
 -- HTTP
@@ -218,12 +245,33 @@ fetchVapidKey =
         }
 
 
-registerSubscription : Encode.Value -> Cmd Msg
-registerSubscription subscription =
+registerSubscription : String -> Encode.Value -> Cmd Msg
+registerSubscription topic subscription =
     Http.post
         { url = pushServerUrl ++ "/subscriptions"
-        , body = Http.jsonBody (Encode.object [ ( "subscription", subscription ) ])
+        , body =
+            Http.jsonBody
+                (Encode.object
+                    [ ( "subscription", subscription )
+                    , ( "topic", Encode.string topic )
+                    ]
+                )
         , expect = Http.expectWhatever SubscriptionRegistered
+        }
+
+
+sendTestNotification : String -> String -> String -> Cmd Msg
+sendTestNotification topic title body =
+    Http.post
+        { url = pushServerUrl ++ "/topics/" ++ topic ++ "/notify"
+        , body =
+            Http.jsonBody
+                (Encode.object
+                    [ ( "title", Encode.string title )
+                    , ( "body", Encode.string body )
+                    ]
+                )
+        , expect = Http.expectWhatever NotificationSent
         }
 
 
@@ -416,6 +464,7 @@ viewPushNotifications model =
                     )
                 ]
             ]
+        , viewSendTestNotification model
         , case model.pushError of
             Just err ->
                 p [ style "color" "red" ] [ text err ]
@@ -423,6 +472,45 @@ viewPushNotifications model =
             Nothing ->
                 text ""
         ]
+
+
+viewSendTestNotification : Model -> Html Msg
+viewSendTestNotification model =
+    case model.pushSubscription of
+        Nothing ->
+            text ""
+
+        Just _ ->
+            div []
+                [ h3 [] [ text "Send Test Notification" ]
+                , div [ class "note-input" ]
+                    [ input
+                        [ type_ "text"
+                        , placeholder "Title"
+                        , value model.notifyTitle
+                        , onInput SetNotifyTitle
+                        ]
+                        []
+                    , input
+                        [ type_ "text"
+                        , placeholder "Body"
+                        , value model.notifyBody
+                        , onInput SetNotifyBody
+                        , onEnter SendTestNotification
+                        ]
+                        []
+                    , button [ onClick SendTestNotification ] [ text "Send" ]
+                    ]
+                , case model.notifySent of
+                    Just True ->
+                        p [ style "color" "green" ] [ text "Sent!" ]
+
+                    Just False ->
+                        p [ style "color" "red" ] [ text "Failed to send" ]
+
+                    Nothing ->
+                        text ""
+                ]
 
 
 permissionToString : Maybe Pwa.NotificationPermission -> String
