@@ -20,11 +20,32 @@ export function init({ ports, swUrl }) {
   window.addEventListener("online", sendConnectionStatus);
   window.addEventListener("offline", sendConnectionStatus);
 
+  // --- Notification Permission (initial state) ---
+
+  function sendNotificationPermission() {
+    if (!("Notification" in window)) {
+      pwaIn.send({
+        tag: "notificationPermissionChanged",
+        permission: "unsupported",
+      });
+    } else {
+      pwaIn.send({
+        tag: "notificationPermissionChanged",
+        permission: Notification.permission,
+      });
+    }
+  }
+  sendNotificationPermission();
+
   // --- Service Worker Registration & Update Flow ---
+
+  var swRegistration;
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register(serviceWorkerUrl).then(function (reg) {
+        swRegistration = reg;
+
         // A new SW is already waiting (e.g., user reopened the tab)
         if (reg.waiting) {
           pwaIn.send({ tag: "updateAvailable" });
@@ -57,6 +78,18 @@ export function init({ ports, swUrl }) {
             reg.update();
           }
         });
+
+        // Check for existing push subscription
+        if (reg.pushManager) {
+          reg.pushManager.getSubscription().then(function (sub) {
+            if (sub) {
+              pwaIn.send({
+                tag: "pushSubscription",
+                subscription: sub.toJSON(),
+              });
+            }
+          });
+        }
       });
 
       // Reload when the new SW takes control
@@ -65,6 +98,16 @@ export function init({ ports, swUrl }) {
         if (!refreshing) {
           refreshing = true;
           location.reload();
+        }
+      });
+
+      // Listen for messages from the service worker (e.g., notification clicks)
+      navigator.serviceWorker.addEventListener("message", function (event) {
+        if (event.data && event.data.tag === "notificationClicked") {
+          pwaIn.send({
+            tag: "notificationClicked",
+            url: event.data.url || "/",
+          });
         }
       });
     });
@@ -102,6 +145,63 @@ export function init({ ports, swUrl }) {
           deferredPrompt.prompt();
           deferredPrompt.userChoice.then(function () {
             deferredPrompt = null;
+          });
+        }
+        break;
+
+      case "requestNotificationPermission":
+        if (!("Notification" in window)) {
+          pwaIn.send({
+            tag: "notificationPermissionChanged",
+            permission: "unsupported",
+          });
+        } else {
+          Notification.requestPermission().then(function (result) {
+            pwaIn.send({
+              tag: "notificationPermissionChanged",
+              permission: result,
+            });
+          });
+        }
+        break;
+
+      case "subscribePush":
+        if (swRegistration && swRegistration.pushManager) {
+          var vapidPublicKey = msg.vapidPublicKey;
+          console.log("YEAH in subscribePush handler");
+          console.log("msg", msg);
+          var rawKey = atob(
+            vapidPublicKey.replace(/-/g, "+").replace(/_/g, "/"),
+          );
+          var keyArray = new Uint8Array(rawKey.length);
+          for (var i = 0; i < rawKey.length; i++) {
+            keyArray[i] = rawKey.charCodeAt(i);
+          }
+          swRegistration.pushManager
+            .subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: keyArray,
+            })
+            .then(function (sub) {
+              pwaIn.send({
+                tag: "pushSubscription",
+                subscription: sub.toJSON(),
+              });
+            })
+            .catch(function () {
+              sendNotificationPermission();
+            });
+        }
+        break;
+
+      case "unsubscribePush":
+        if (swRegistration && swRegistration.pushManager) {
+          swRegistration.pushManager.getSubscription().then(function (sub) {
+            if (sub) {
+              sub.unsubscribe().then(function () {
+                pwaIn.send({ tag: "pushUnsubscribed" });
+              });
+            }
           });
         }
         break;

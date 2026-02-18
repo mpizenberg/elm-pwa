@@ -49,6 +49,9 @@ type alias Model =
     , isInstalled : Bool
     , notes : List String
     , draft : String
+    , notificationPermission : Maybe Pwa.NotificationPermission
+    , pushSubscription : Maybe Encode.Value
+    , lastNotificationUrl : Maybe String
     }
 
 
@@ -60,6 +63,9 @@ init isOnline =
       , isInstalled = False
       , notes = [ "This note was created offline-ready" ]
       , draft = ""
+      , notificationPermission = Nothing
+      , pushSubscription = Nothing
+      , lastNotificationUrl = Nothing
       }
     , Cmd.none
     )
@@ -76,6 +82,9 @@ type Msg
     | SetDraft String
     | AddNote
     | RemoveNote Int
+    | RequestNotificationPermission
+    | SubscribePush
+    | UnsubscribePush
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -94,6 +103,18 @@ update msg model =
 
                 Pwa.Installed ->
                     ( { model | installAvailable = False, isInstalled = True }, Cmd.none )
+
+                Pwa.NotificationPermissionChanged permission ->
+                    ( { model | notificationPermission = Just permission }, Cmd.none )
+
+                Pwa.PushSubscription subscription ->
+                    ( { model | pushSubscription = Just subscription }, Cmd.none )
+
+                Pwa.PushUnsubscribed ->
+                    ( { model | pushSubscription = Nothing }, Cmd.none )
+
+                Pwa.NotificationClicked url ->
+                    ( { model | lastNotificationUrl = Just url }, Cmd.none )
 
         GotPwaEvent (Err _) ->
             ( model, Cmd.none )
@@ -121,6 +142,15 @@ update msg model =
 
         RemoveNote index ->
             ( { model | notes = removeAt index model.notes }, Cmd.none )
+
+        RequestNotificationPermission ->
+            ( model, Pwa.requestNotificationPermission pwaOut )
+
+        SubscribePush ->
+            ( model, Pwa.subscribePush pwaOut "YOUR_VAPID_PUBLIC_KEY_HERE" )
+
+        UnsubscribePush ->
+            ( model, Pwa.unsubscribePush pwaOut )
 
 
 removeAt : Int -> List a -> List a
@@ -227,6 +257,7 @@ viewMain model =
                 ]
             , viewNotes model.notes
             ]
+        , viewPushNotifications model
         , section []
             [ h2 [] [ text "How This Works" ]
             , dl []
@@ -238,9 +269,82 @@ viewMain model =
                 , dd [] [ text "JS listens for online/offline events and sends status to Elm via ports." ]
                 , dt [] [ text "Install Prompt" ]
                 , dd [] [ text "The beforeinstallprompt event is captured in JS and forwarded to Elm, which shows an install button." ]
+                , dt [] [ text "Push Notifications" ]
+                , dd [] [ text "Request permission, subscribe via the Push API, and handle notification clicks — all through the same ports." ]
                 ]
             ]
         ]
+
+
+viewPushNotifications : Model -> Html Msg
+viewPushNotifications model =
+    section []
+        [ h2 [] [ text "Push Notifications" ]
+        , dl []
+            [ dt [] [ text "Permission" ]
+            , dd []
+                [ text (permissionToString model.notificationPermission)
+                , case model.notificationPermission of
+                    Just Pwa.Default ->
+                        button [ onClick RequestNotificationPermission, style "margin-left" "8px" ]
+                            [ text "Enable Notifications" ]
+
+                    Nothing ->
+                        button [ onClick RequestNotificationPermission, style "margin-left" "8px" ]
+                            [ text "Enable Notifications" ]
+
+                    _ ->
+                        text ""
+                ]
+            , dt [] [ text "Push Subscription" ]
+            , dd []
+                [ case model.pushSubscription of
+                    Just _ ->
+                        span []
+                            [ text "Active "
+                            , button [ onClick UnsubscribePush ] [ text "Unsubscribe" ]
+                            ]
+
+                    Nothing ->
+                        case model.notificationPermission of
+                            Just Pwa.Granted ->
+                                button [ onClick SubscribePush ] [ text "Subscribe to Push" ]
+
+                            _ ->
+                                text "Not subscribed (grant notification permission first)"
+                ]
+            , dt [] [ text "Last Notification Click" ]
+            , dd []
+                [ text
+                    (case model.lastNotificationUrl of
+                        Just url ->
+                            url
+
+                        Nothing ->
+                            "None"
+                    )
+                ]
+            ]
+        ]
+
+
+permissionToString : Maybe Pwa.NotificationPermission -> String
+permissionToString maybePerm =
+    case maybePerm of
+        Nothing ->
+            "Unknown"
+
+        Just Pwa.Granted ->
+            "Granted"
+
+        Just Pwa.Denied ->
+            "Denied"
+
+        Just Pwa.Default ->
+            "Default (not asked)"
+
+        Just Pwa.Unsupported ->
+            "Unsupported"
 
 
 viewNotes : List String -> Html Msg

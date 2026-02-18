@@ -64,6 +64,8 @@ export function generateSW(config) {
 //   - Fetch (routes): network-only and network-first prefix matching
 //   - Fetch (default): cache-first, falling back to network
 //   - Message "SKIP_WAITING": activate a waiting service worker immediately
+//   - Push: show notifications from push events
+//   - Notification click: focus or open the app at the notification's URL
 // ---------------------------------------------------------------------------
 
 var SW_TEMPLATE = `
@@ -147,5 +149,47 @@ self.addEventListener("message", function (event) {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+});
+
+// Push: show a notification from the push payload
+self.addEventListener("push", function (event) {
+  var payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch (e) {
+      payload = { title: event.data.text() || "New notification" };
+    }
+  }
+  var title = payload.title || "New notification";
+  var options = {
+    body: payload.body || "",
+    icon: payload.icon || "",
+    badge: payload.badge || "",
+    tag: payload.tag || "",
+    data: payload.data || {},
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Notification click: focus an existing window or open a new one
+self.addEventListener("notificationclick", function (event) {
+  event.notification.close();
+  var url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then(function (windowClients) {
+        for (var i = 0; i < windowClients.length; i++) {
+          var client = windowClients[i];
+          if (new URL(client.url).origin === self.location.origin) {
+            return client.focus().then(function (focusedClient) {
+              focusedClient.postMessage({ tag: "notificationClicked", url: url });
+            });
+          }
+        }
+        return self.clients.openWindow(url);
+      })
+  );
 });
 `;
