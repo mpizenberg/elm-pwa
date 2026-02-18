@@ -63,6 +63,44 @@ To test offline: DevTools > Application > Service Workers > check "Offline".
 
 To test install: use Chrome/Edge via `localhost` or HTTPS.
 
+## Testing push notifications
+
+Push notifications require a server to store subscriptions and send messages.
+The demo is configured to use a [go-notify-server](https://github.com/mpizenberg/go-notify-server)
+instance at `https://push.dokploy.zidev.ovh`.
+
+### Prerequisites
+
+- **Chrome** (or Chromium-based browser) — Firefox works too but setup differs
+- **macOS**: System Settings > Notifications > Google Chrome must be enabled
+- The service worker must have a `push` event handler — if you previously ran the
+  demo before push support was added, **unregister the old service worker** in
+  DevTools > Application > Service Workers, then reload
+
+### Subscribe
+
+1. Serve the demo (`cd static && python -m http.server 8000`)
+2. Open `http://localhost:8000`
+3. In the "Push Notifications" section, click **Enable Notifications** and accept the browser prompt
+4. Click **Subscribe to Push** — the subscription is automatically registered with the push server
+
+### Send a test notification
+
+```sh
+curl -X POST https://push.dokploy.zidev.ovh/notify \
+  -H "Authorization: Bearer YOUR_ADMIN_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Hello!", "body": "Push from go-notify-server", "url": "/test"}'
+```
+
+A system notification should appear. Clicking it updates "Last Notification Click" in the app.
+
+### Troubleshooting
+
+- **No notification appears** — check macOS System Settings > Notifications > Chrome is enabled, then restart Chrome
+- **"Registration failed - push service error"** — the active service worker is outdated (no push handler). Unregister it in DevTools > Application > Service Workers, then reload
+- **Subscribe button does nothing** — the service worker hasn't finished registering yet. Wait a moment and retry, or check DevTools Console for errors
+
 ## Project structure
 
 ```

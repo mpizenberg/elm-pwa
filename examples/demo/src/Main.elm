@@ -4,6 +4,7 @@ import Browser
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
+import Http
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Pwa
@@ -13,6 +14,11 @@ port pwaIn : (Decode.Value -> msg) -> Sub msg
 
 
 port pwaOut : Encode.Value -> Cmd msg
+
+
+pushServerUrl : String
+pushServerUrl =
+    "https://push.dokploy.zidev.ovh"
 
 
 
@@ -52,6 +58,8 @@ type alias Model =
     , notificationPermission : Maybe Pwa.NotificationPermission
     , pushSubscription : Maybe Encode.Value
     , lastNotificationUrl : Maybe String
+    , vapidPublicKey : Maybe String
+    , pushError : Maybe String
     }
 
 
@@ -66,8 +74,10 @@ init isOnline =
       , notificationPermission = Nothing
       , pushSubscription = Nothing
       , lastNotificationUrl = Nothing
+      , vapidPublicKey = Nothing
+      , pushError = Nothing
       }
-    , Cmd.none
+    , fetchVapidKey
     )
 
 
@@ -85,6 +95,9 @@ type Msg
     | RequestNotificationPermission
     | SubscribePush
     | UnsubscribePush
+    | GotVapidKey (Result Http.Error String)
+    | SubscriptionRegistered (Result Http.Error ())
+    | SubscriptionUnregistered (Result Http.Error ())
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -108,10 +121,28 @@ update msg model =
                     ( { model | notificationPermission = Just permission }, Cmd.none )
 
                 Pwa.PushSubscription subscription ->
-                    ( { model | pushSubscription = Just subscription }, Cmd.none )
+                    ( { model | pushSubscription = Just subscription, pushError = Nothing }
+                    , registerSubscription subscription
+                    )
 
                 Pwa.PushUnsubscribed ->
-                    ( { model | pushSubscription = Nothing }, Cmd.none )
+                    let
+                        endpoint =
+                            model.pushSubscription
+                                |> Maybe.andThen
+                                    (\sub ->
+                                        Decode.decodeValue (Decode.field "endpoint" Decode.string) sub
+                                            |> Result.toMaybe
+                                    )
+                    in
+                    ( { model | pushSubscription = Nothing }
+                    , case endpoint of
+                        Just ep ->
+                            unregisterSubscription ep
+
+                        Nothing ->
+                            Cmd.none
+                    )
 
                 Pwa.NotificationClicked url ->
                     ( { model | lastNotificationUrl = Just url }, Cmd.none )
@@ -147,10 +178,70 @@ update msg model =
             ( model, Pwa.requestNotificationPermission pwaOut )
 
         SubscribePush ->
-            ( model, Pwa.subscribePush pwaOut "YOUR_VAPID_PUBLIC_KEY_HERE" )
+            case model.vapidPublicKey of
+                Just key ->
+                    ( model, Pwa.subscribePush pwaOut key )
+
+                Nothing ->
+                    ( { model | pushError = Just "VAPID key not loaded yet" }, Cmd.none )
 
         UnsubscribePush ->
             ( model, Pwa.unsubscribePush pwaOut )
+
+        GotVapidKey (Ok key) ->
+            ( { model | vapidPublicKey = Just key }, Cmd.none )
+
+        GotVapidKey (Err _) ->
+            ( { model | pushError = Just "Failed to fetch VAPID key" }, Cmd.none )
+
+        SubscriptionRegistered (Ok _) ->
+            ( model, Cmd.none )
+
+        SubscriptionRegistered (Err _) ->
+            ( { model | pushError = Just "Failed to register subscription with server" }, Cmd.none )
+
+        SubscriptionUnregistered _ ->
+            ( model, Cmd.none )
+
+
+
+-- HTTP
+
+
+fetchVapidKey : Cmd Msg
+fetchVapidKey =
+    Http.get
+        { url = pushServerUrl ++ "/vapid-public-key"
+        , expect =
+            Http.expectJson GotVapidKey
+                (Decode.field "vapidPublicKey" Decode.string)
+        }
+
+
+registerSubscription : Encode.Value -> Cmd Msg
+registerSubscription subscription =
+    Http.post
+        { url = pushServerUrl ++ "/subscriptions"
+        , body = Http.jsonBody (Encode.object [ ( "subscription", subscription ) ])
+        , expect = Http.expectWhatever SubscriptionRegistered
+        }
+
+
+unregisterSubscription : String -> Cmd Msg
+unregisterSubscription endpoint =
+    Http.request
+        { method = "DELETE"
+        , headers = []
+        , url = pushServerUrl ++ "/subscriptions"
+        , body = Http.jsonBody (Encode.object [ ( "endpoint", Encode.string endpoint ) ])
+        , expect = Http.expectWhatever SubscriptionUnregistered
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+
+-- HELPERS
 
 
 removeAt : Int -> List a -> List a
@@ -325,6 +416,12 @@ viewPushNotifications model =
                     )
                 ]
             ]
+        , case model.pushError of
+            Just err ->
+                p [ style "color" "red" ] [ text err ]
+
+            Nothing ->
+                text ""
         ]
 
 

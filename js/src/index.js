@@ -166,32 +166,33 @@ export function init({ ports, swUrl }) {
         break;
 
       case "subscribePush":
-        if (swRegistration && swRegistration.pushManager) {
-          var vapidPublicKey = msg.vapidPublicKey;
-          console.log("YEAH in subscribePush handler");
-          console.log("msg", msg);
-          var rawKey = atob(
-            vapidPublicKey.replace(/-/g, "+").replace(/_/g, "/"),
-          );
-          var keyArray = new Uint8Array(rawKey.length);
-          for (var i = 0; i < rawKey.length; i++) {
-            keyArray[i] = rawKey.charCodeAt(i);
-          }
-          swRegistration.pushManager
-            .subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: keyArray,
-            })
-            .then(function (sub) {
-              pwaIn.send({
-                tag: "pushSubscription",
-                subscription: sub.toJSON(),
-              });
-            })
-            .catch(function () {
-              sendNotificationPermission();
-            });
+        if (!swRegistration || !swRegistration.pushManager) {
+          break;
         }
+        var vapidPublicKey = msg.vapidPublicKey;
+        var padding = "=".repeat((4 - (vapidPublicKey.length % 4)) % 4);
+        var base64 = (vapidPublicKey + padding)
+          .replace(/-/g, "+")
+          .replace(/_/g, "/");
+        var rawKey = atob(base64);
+        var keyArray = new Uint8Array(rawKey.length);
+        for (var i = 0; i < rawKey.length; i++) {
+          keyArray[i] = rawKey.charCodeAt(i);
+        }
+        swRegistration.pushManager
+          .subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: keyArray,
+          })
+          .then(function (sub) {
+            pwaIn.send({
+              tag: "pushSubscription",
+              subscription: sub.toJSON(),
+            });
+          })
+          .catch(function () {
+            sendNotificationPermission();
+          });
         break;
 
       case "unsubscribePush":
