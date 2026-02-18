@@ -165,14 +165,18 @@ generateSW({
   cacheName: "my-app-v1",       // required: cache version identifier
   precacheUrls: ["/", ...],     // required: URLs to cache during install
   navigationFallback: "/",      // optional: cached URL for navigation requests (default: "/")
+  networkFirstPrefixes: ["/api/"],  // optional: path prefixes to serve network-first (default: [])
+  networkOnlyPrefixes: ["/auth/"],  // optional: path prefixes to serve network-only (default: [])
 })
 // Returns: string (complete service worker source code)
 ```
 
-The generated service worker uses cache-first for all static assets
-and serves the navigation fallback for all page navigations (SPA routing).
-To add network-first for API routes, edit the generated file — see the
-comment in `build.js` for an example.
+The generated service worker uses three caching strategies, checked in this order:
+
+1. **Navigation requests** — serve the cached navigation fallback (SPA routing)
+2. **Network-only prefixes** — always fetch from the network, never cache
+3. **Network-first prefixes** — try the network first, cache successful responses, fall back to cache when offline
+4. **Everything else** — cache-first (serve from cache, fall back to network)
 
 ## How it works
 

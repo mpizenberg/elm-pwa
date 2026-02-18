@@ -9,6 +9,8 @@
  * @param {string} config.cacheName - Cache version identifier (e.g., "my-app-v1")
  * @param {string[]} config.precacheUrls - URLs to cache during SW install
  * @param {string} [config.navigationFallback="/"] - Cached URL to serve for navigation requests
+ * @param {string[]} [config.networkFirstPrefixes=[]] - URL path prefixes to serve network-first (e.g., ["/api/"])
+ * @param {string[]} [config.networkOnlyPrefixes=[]] - URL path prefixes to serve network-only (e.g., ["/auth/"])
  * @returns {string} Complete service worker source code
  *
  * @example
@@ -18,6 +20,7 @@
  * writeFileSync("static/sw.js", generateSW({
  *   cacheName: "my-app-v1",
  *   precacheUrls: ["/", "/elm.js", "/style.css", "/manifest.webmanifest"],
+ *   networkFirstPrefixes: ["/api/"],
  * }));
  *
  * @example
@@ -42,6 +45,8 @@ export function generateSW(config) {
       cacheName: config.cacheName,
       precacheUrls: config.precacheUrls,
       navigationFallback: config.navigationFallback || "/",
+      networkFirstPrefixes: config.networkFirstPrefixes || [],
+      networkOnlyPrefixes: config.networkOnlyPrefixes || [],
     },
     null,
     2,
@@ -56,20 +61,9 @@ export function generateSW(config) {
 //   - Install: precache the URLs listed in SW_CONFIG.precacheUrls
 //   - Activate: delete old caches (any cache name !== SW_CONFIG.cacheName)
 //   - Fetch (navigation): serve the cached navigation fallback (SPA shell)
-//   - Fetch (other): cache-first, falling back to network
+//   - Fetch (routes): network-only and network-first prefix matching
+//   - Fetch (default): cache-first, falling back to network
 //   - Message "SKIP_WAITING": activate a waiting service worker immediately
-//
-// To add network-first for API routes, edit the generated sw.js and add
-// a check in the fetch handler before the default cache-first block:
-//
-//   if (new URL(event.request.url).pathname.startsWith("/api/")) {
-//     event.respondWith(
-//       fetch(event.request).catch(function () {
-//         return caches.match(event.request);
-//       })
-//     );
-//     return;
-//   }
 // ---------------------------------------------------------------------------
 
 var SW_TEMPLATE = `
@@ -99,7 +93,7 @@ self.addEventListener("activate", function (event) {
   );
 });
 
-// Fetch: navigation fallback + cache-first for static assets
+// Fetch: navigation fallback, route strategies, then cache-first default
 self.addEventListener("fetch", function (event) {
   // Navigation requests: serve the cached app shell (Elm handles routing)
   if (event.request.mode === "navigate") {
@@ -111,7 +105,36 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
-  // Everything else: cache-first
+  // Route-specific strategies (network-only checked first, then network-first)
+  var pathname = new URL(event.request.url).pathname;
+  for (var i = 0; i < SW_CONFIG.networkOnlyPrefixes.length; i++) {
+    if (pathname.startsWith(SW_CONFIG.networkOnlyPrefixes[i])) {
+      event.respondWith(fetch(event.request));
+      return;
+    }
+  }
+  for (var i = 0; i < SW_CONFIG.networkFirstPrefixes.length; i++) {
+    if (pathname.startsWith(SW_CONFIG.networkFirstPrefixes[i])) {
+      event.respondWith(
+        fetch(event.request)
+          .then(function (response) {
+            if (response.ok) {
+              var clone = response.clone();
+              caches.open(SW_CONFIG.cacheName).then(function (cache) {
+                cache.put(event.request, clone);
+              });
+            }
+            return response;
+          })
+          .catch(function () {
+            return caches.match(event.request);
+          })
+      );
+      return;
+    }
+  }
+
+  // Default: cache-first
   event.respondWith(
     caches.match(event.request).then(function (cached) {
       return cached || fetch(event.request);
