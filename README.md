@@ -21,44 +21,14 @@ port pwaOut : Encode.Value -> Cmd msg
 ```elm
 import Pwa
 
-type Msg
-    = GotPwaEvent (Result Decode.Error Pwa.Event)
-    | AcceptUpdate
-    | RequestInstall
-
 subscriptions _ =
     pwaIn (Pwa.decodeEvent >> GotPwaEvent)
 
 update msg model =
     case msg of
         GotPwaEvent (Ok event) ->
-            case event of
-                Pwa.ConnectionChanged online ->
-                    ( { model | isOnline = online }, Cmd.none )
-
-                Pwa.UpdateAvailable ->
-                    ( { model | updateAvailable = True }, Cmd.none )
-
-                Pwa.InstallAvailable ->
-                    ( { model | installAvailable = True }, Cmd.none )
-
-                Pwa.Installed ->
-                    ( { model | installAvailable = False }, Cmd.none )
-
-                Pwa.NotificationPermissionChanged permission ->
-                    ( { model | notificationPermission = Just permission }, Cmd.none )
-
-                Pwa.PushSubscription subscription ->
-                    ( { model | pushSubscription = Just subscription }, Cmd.none )
-
-                Pwa.PushUnsubscribed ->
-                    ( { model | pushSubscription = Nothing }, Cmd.none )
-
-                Pwa.NotificationClicked url ->
-                    ( { model | lastNotificationUrl = Just url }, Cmd.none )
-
-        GotPwaEvent (Err _) ->
-            ( model, Cmd.none )
+            -- Handle each Pwa.Event variant (see API section below)
+            ...
 
         AcceptUpdate ->
             ( model, Pwa.acceptUpdate pwaOut )
@@ -66,6 +36,9 @@ update msg model =
         RequestInstall ->
             ( model, Pwa.requestInstall pwaOut )
 ```
+
+See [`examples/demo/src/Main.elm`](examples/demo/src/Main.elm) for a complete working example
+that handles all events.
 
 ### 3. Initialize the JS side
 
@@ -236,23 +209,8 @@ Web Push is supported across all major browsers:
 
 4. **Handle notification clicks** — when the user clicks a notification, a `NotificationClicked` event arrives with the target URL. Use this to navigate within your SPA.
 
-```elm
-update msg model =
-    case msg of
-        EnableNotifications ->
-            ( model, Pwa.requestNotificationPermission pwaOut )
-
-        GotPwaEvent (Ok (Pwa.NotificationPermissionChanged Pwa.Granted)) ->
-            ( model, Pwa.subscribePush pwaOut myVapidPublicKey )
-
-        GotPwaEvent (Ok (Pwa.PushSubscription subscription)) ->
-            ( model, sendSubscriptionToBackend subscription )
-
-        GotPwaEvent (Ok (Pwa.NotificationClicked url)) ->
-            ( model, Nav.pushUrl model.key url )
-
-        -- ...
-```
+See the push notification handling in [`examples/demo/src/Main.elm`](examples/demo/src/Main.elm)
+for a complete implementation.
 
 ### Push payload format
 
