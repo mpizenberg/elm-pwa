@@ -178,6 +178,58 @@ The generated service worker uses three caching strategies, checked in this orde
 3. **Network-first prefixes** — try the network first, cache successful responses, fall back to cache when offline
 4. **Everything else** — cache-first (serve from cache, fall back to network)
 
+## Cache busting
+
+By default, you bump `cacheName` manually on each deploy. For automated cache
+invalidation, hash your assets in the build script and include the hash in the URL:
+
+```javascript
+// build-sw.mjs
+import { generateSW } from "elm-pwa/build";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
+
+function hash(file) {
+  return createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 8);
+}
+
+var elmHash = hash("static/elm.js");
+var cssHash = hash("static/style.css");
+
+writeFileSync(
+  "static/sw.js",
+  generateSW({
+    cacheName: "my-app-" + elmHash,
+    precacheUrls: [
+      "/",
+      "/elm.js?v=" + elmHash,
+      "/style.css?v=" + cssHash,
+      "/manifest.webmanifest",
+    ],
+  }),
+);
+```
+
+Then use the same query strings in your HTML `<script>` and `<link>` tags.
+This way, `cacheName` changes automatically whenever the content changes,
+triggering the update flow without manual version bumping.
+
+## Roadmap
+
+Features planned for future releases:
+
+- **Stale-while-revalidate strategy** — serve from cache immediately while
+  updating in the background. Useful for semi-dynamic content (avatars,
+  non-critical data). Will be added as a `staleWhileRevalidatePrefixes`
+  option in `generateSW`.
+
+- **Background Sync** — queue failed requests (e.g., form submissions) and
+  replay them when connectivity returns. Chromium-only but valuable for
+  offline-capable apps that write data.
+
+- **Badging API** — set unread counts on the installed app icon.
+  Chromium-only, with partial Safari support.
+
 ## How it works
 
 The package uses a tagged JSON protocol over two generic ports:
