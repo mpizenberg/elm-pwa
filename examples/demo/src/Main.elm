@@ -569,6 +569,6 @@ viewFooter : Html Msg
 viewFooter =
     footer []
         [ text "Elm PWA Example — See "
-        , a [ href "../../pwa.md" ] [ text "pwa.md" ]
+        , a [ href "https://github.com/mpizenberg/elm-pwa" ] [ text "README" ]
         , text " for the full guide."
         ]

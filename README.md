@@ -141,6 +141,10 @@ Link it from your HTML:
 <link rel="manifest" href="/manifest.webmanifest" />
 ```
 
+Chrome requires `name` or `short_name`, `icons` (192x192 and 512x512), `start_url`,
+and `display` set to `standalone`, `fullscreen`, or `minimal-ui`.
+See the [Web App Manifest](#web-app-manifest) section below for recommended fields.
+
 ## API
 
 ### Elm (`Pwa` module)
@@ -213,6 +217,15 @@ It also includes handlers for push notifications and notification clicks (zero o
 Push notifications let your backend send messages to users even when the app isn't open.
 This package handles the client side — subscribing, receiving, and responding to notification clicks.
 
+Web Push is supported across all major browsers:
+
+| Platform                        | Status                                                |
+| ------------------------------- | ----------------------------------------------------- |
+| Chrome/Edge (desktop & Android) | Full support via VAPID keys                           |
+| Firefox (desktop)               | Full support                                          |
+| Safari (macOS)                  | Supported since Safari 16.1                           |
+| Safari (iOS/iPadOS)             | Since iOS 16.4, only for installed (home screen) PWAs |
+
 ### Recommended flow
 
 1. **Request permission** — call `Pwa.requestNotificationPermission pwaOut`. A `NotificationPermissionChanged` event arrives with the result.
@@ -258,7 +271,111 @@ The service worker expects push payloads as JSON:
 
 The `data.url` field determines which URL is sent in the `NotificationClicked` event.
 
-## Cache busting
+### Declarative Web Push (Safari 18.4+)
+
+Apple introduced Declarative Web Push in Safari 18.4 (March 2025),
+which does **not require a service worker** for push delivery.
+This reduces battery/CPU usage and simplifies implementation.
+Available on macOS (Safari 18.5+) and iOS/iPadOS 18.4+ for home screen web apps.
+
+## Web App Manifest
+
+### Recommended fields
+
+The [minimum required fields](#5-add-a-web-app-manifest) get your app installable.
+For a polished experience, add these recommended fields:
+
+```jsonc
+{
+  "name": "My Elm App",
+  "short_name": "ElmApp",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#60B5CC",
+  "description": "A description of the application",
+  "scope": "/",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable",
+    },
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+    },
+    {
+      "src": "/screenshots/narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+    },
+  ],
+}
+```
+
+Adding `screenshots` (with `form_factor: "wide"` and `"narrow"`) plus a `description`
+transforms Android's install dialog into a richer app-store-like experience.
+
+Provide a **maskable** icon variant for adaptive icon rendering on Android 8+.
+Avoid transparent PNG icons -- iOS and Android fill transparency with an uncontrollable background color.
+
+### Display modes
+
+Standard `display` values: `fullscreen`, `standalone`, `minimal-ui`, `browser`.
+
+The `display_override` field provides a fallback chain of newer experimental modes:
+
+- `window-controls-overlay` -- gives the PWA the full title bar area (desktop Chromium only)
+- `tabbed` -- experimental; adds a tab strip to standalone apps
+
+The browser picks the first supported value from `display_override`, then falls back to `display`.
+
+### Elm-specific notes
+
+Since Elm SPAs use `Browser.element` with client-side routing,
+set `"start_url": "/"` and ensure your server returns `index.html` for all routes.
+The manifest file itself has no Elm-specific considerations -- it is standard JSON
+placed alongside the static assets.
+
+## Caching Strategies
+
+The `generateSW` function produces a service worker that combines several caching strategies.
+Here is what each strategy does and when to use it:
+
+| Strategy                   | Use for                                           | Behavior                                           |
+| -------------------------- | ------------------------------------------------- | -------------------------------------------------- |
+| **Cache First**            | Static assets (elm.js, CSS, fonts, images)        | Check cache; on miss, fetch and cache              |
+| **Network First**          | API responses, frequently updated content         | Try network; on failure, fall back to cache        |
+| **Stale While Revalidate** | Semi-dynamic content (avatars, non-critical data) | Serve from cache immediately, update in background |
+| **Cache Only**             | Versioned/immutable assets                        | Always serve from cache                            |
+| **Network Only**           | Real-time data (auth tokens, payments)            | Always go to network                               |
+
+Elm compiles to a **single JS file**, which simplifies caching compared to typical JS SPAs.
+The recommended configuration:
+
+- **Cache First** for the Elm JS bundle, CSS, fonts, and images (via the default strategy)
+- **Network First** for API calls via `networkFirstPrefixes: ["/api/"]`
+- **Network Only** for auth endpoints via `networkOnlyPrefixes: ["/auth/"]`
+
+### SPA update checking
+
+In SPAs, the user rarely does full page navigations (Elm handles routing via `pushState`),
+so the browser does not automatically check for service worker updates on in-app navigation.
+The `init()` function handles this automatically by:
+
+- Checking for updates periodically (every hour)
+- Checking when the user returns to the tab (`visibilitychange` event)
+
+## Cache Busting
 
 By default, you bump `cacheName` manually on each deploy. For automated cache
 invalidation, hash your assets in the build script and include the hash in the URL:
@@ -297,6 +414,150 @@ Then use the same query strings in your HTML `<script>` and `<link>` tags.
 This way, `cacheName` changes automatically whenever the content changes,
 triggering the update flow without manual version bumping.
 
+## Install Experience
+
+### Install criteria (Chrome)
+
+- Served over HTTPS (or localhost)
+- Valid web app manifest with required fields
+- User has interacted with the page
+- Not already installed
+
+Note: a service worker with a fetch handler is **no longer required** for the install prompt
+since Chrome 108 (mobile) and 112 (desktop).
+Chrome provides a default offline page for apps without their own.
+However, implementing a service worker is still recommended for a quality experience.
+
+### Custom install button
+
+`beforeinstallprompt` lets you capture the browser's install prompt and defer it
+to show your own install UI. The `init()` function captures this event and sends
+an `InstallAvailable` event to Elm. When the user clicks your install button,
+call `Pwa.requestInstall pwaOut` to show the browser's native install dialog.
+
+Browser support: Chromium only. Safari uses "Add to Home Screen" from the share menu.
+Firefox 143+ supports PWA install on Windows.
+
+## Elm/JS Integration Patterns
+
+### Online/offline detection
+
+The `init()` function listens for `online` and `offline` events and sends
+`ConnectionChanged` events to Elm. Pass `navigator.onLine` as a flag for the initial state.
+
+Caveat: `navigator.onLine` is unreliable -- it only detects whether the device
+has a network connection, not whether the internet is reachable.
+Use it as a hint, not a guarantee.
+
+### Service worker as FFI
+
+A pattern discussed on [Elm Discourse](https://discourse.elm-lang.org/t/service-worker-ffi/6408):
+the service worker intercepts HTTP requests made by `elm/http` to specially-defined URLs
+and returns computed responses. This turns `Http.get` into a kind of FFI
+without needing port subscriptions.
+
+Advantage: HTTP requests in Elm are ergonomic -- JSON encoding/decoding, tasks, error handling.
+Limitation: service workers cannot access the DOM.
+
+Key fact: [elm/http works with ServiceWorker](https://discourse.elm-lang.org/t/psa-elm-http-works-with-serviceworker/2562) --
+any fetch request from the Elm app will be intercepted by the service worker.
+
+### IndexedDB and offline data storage
+
+Elm has no native access to IndexedDB or localStorage.
+Offline data persistence requires JS interop.
+
+The Cache API (used by service workers) is for **network responses**.
+IndexedDB is for **structured application data** that needs to be queried, updated, or synced.
+
+Use [elm-indexeddb](https://github.com/mpizenberg/elm-indexeddb), which wraps IndexedDB
+as composable `ConcurrentTask` values. It uses phantom types to enforce key discipline
+at compile time and handles all IndexedDB operations (CRUD, batch, schema migrations).
+
+Key advantages over raw ports for offline storage:
+
+- **Composable**: chain DB reads, HTTP calls, and writes in a single task pipeline
+- **Concurrent**: use `ConcurrentTask.map2`/`batch` to read multiple stores in parallel
+- **Typed errors**: `AlreadyExists`, `QuotaExceeded`, etc. flow through the task chain
+- **No port ping-pong**: a multi-step workflow is a single task, not multiple port round-trips
+
+**Offline action queue**: queue failed writes in a dedicated store,
+then replay them when connectivity returns (via the `online` event or Background Sync).
+
+## Browser Support (Early 2026)
+
+| Feature         | Chrome | Edge | Firefox             | Safari (macOS) | Safari (iOS)         |
+| --------------- | ------ | ---- | ------------------- | -------------- | -------------------- |
+| Install PWA     | Yes    | Yes  | Windows only (143+) | No             | Home Screen only     |
+| Service Workers | Yes    | Yes  | Yes                 | Yes            | Yes                  |
+| Web Push        | Yes    | Yes  | Yes                 | Yes            | Yes (installed only) |
+| Background Sync | Yes    | Yes  | No                  | No             | No                   |
+| Badging API     | Yes    | Yes  | No                  | Partial        | No                   |
+
+### iOS/Safari limitations
+
+- PWAs can only be installed from Safari (not Chrome/Edge on iOS)
+- No Background Sync or Periodic Background Sync
+- Storage may be purged if the PWA is unused for ~7 days
+- `beforeinstallprompt` not supported; install is only via Safari's share menu
+
+## Lighthouse PWA Audit
+
+The Lighthouse PWA audit checks three areas:
+
+**Installable**: valid manifest with required fields, `prefer_related_applications` not set to `true`.
+
+**PWA Optimized**: HTTPS, service worker registered, custom offline page (HTTP 200 when offline),
+`theme_color` and proper viewport set, content sized for viewport, Apple touch icon provided.
+
+**Performance**: Time to Interactive under 10 seconds on simulated slow 4G.
+Core Web Vitals: LCP < 2.5s, INP < 200ms, CLS < 0.1.
+
+## Build Tooling
+
+### Recommended stack: elm-watch + esbuild + hand-written files
+
+The Elm philosophy is to minimize JS tool dependencies.
+A PWA needs only a few static files alongside the Elm build tooling already in use:
+
+```
+static/
+  index.html              # links manifest, registers SW
+  manifest.webmanifest    # static JSON file
+  sw.js                   # generated by build-sw.mjs
+  elm.js                  # compiled by elm-watch / elm make
+  style.css               # compiled by tailwind or hand-written
+  icons/
+    icon-192.png
+    icon-512.png
+```
+
+- **[elm-watch](https://lydell.github.io/elm-watch/)** handles Elm compilation with HMR in development
+- **[esbuild](https://esbuild.github.io/)** minifies `elm.js` and other JS for production
+- **brotli** compresses the output
+- **manifest.webmanifest** is a static JSON file, no generation needed
+- **sw.js** is generated by `generateSW` (see [step 4](#4-generate-the-service-worker))
+
+This stack requires **zero additional npm dependencies** beyond what the project already uses.
+
+### Other approaches
+
+- **[elm-starter](https://github.com/lucamug/elm-starter)** -- Generates service worker config
+  from Elm itself (`Starter/ServiceWorker.elm`). Supports prerendering for SEO.
+- **Vite** with [vite-plugin-elm-watch](https://github.com/ryan-haskell/vite-plugin-elm-watch)
+  and [vite-plugin-pwa](https://vite-pwa-org.netlify.app/guide/) provides automatic SW generation
+  via Workbox, but adds significant JS tooling dependencies.
+
+## Existing Elm PWA Examples
+
+| Project                                                                                       | Approach                        | Notes                                             |
+| --------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------- |
+| [dwyl/elm-pwa-example](https://github.com/dwyl/elm-pwa-example)                               | Hand-written SW + PouchDB       | 100% Lighthouse score, offline data via IndexedDB |
+| [dennistruemper/elm-land-pwa-example](https://github.com/dennistruemper/elm-land-pwa-example) | elm-land + simple SW            | Recent, deployed on Vercel                        |
+| [fpapado/elm-pwa-basic-starter](https://github.com/fpapado/elm-pwa-basic-starter)             | Webpack + offline-plugin        | Webpack-centric, older                            |
+| [lucamug/elm-starter](https://github.com/lucamug/elm-starter)                                 | Elm-generated SW + prerendering | SSG approach                                      |
+| [halfzebra/elm-scrum-cards-pwa](https://github.com/halfzebra/elm-scrum-cards-pwa)             | create-elm-app                  | Simple example                                    |
+
 ## Roadmap
 
 Features planned for future releases:
@@ -319,7 +580,7 @@ A live demo is deployed to Cloudflare Pages at
 [elm-pwa-demo.pages.dev](https://elm-pwa-demo.pages.dev).
 Deployments are triggered automatically by Cloudflare on each push to `main`.
 
-## How it works
+## How It Works
 
 The package uses a tagged JSON protocol over two generic ports:
 
@@ -336,3 +597,38 @@ caching independently. It also handles incoming push events (showing notificatio
 and notification clicks (forwarding the URL to the Elm app via `postMessage`).
 The main-page JS communicates with it via the standard `postMessage` /
 `controllerchange` APIs for the update flow.
+
+## Architecture
+
+There is no "Elm PWA framework" -- PWA features are orthogonal to the Elm runtime.
+Elm compiles to JS, and all PWA features (service workers, manifest, Cache API,
+Push API, Background Sync) operate at the browser/network level outside Elm's scope.
+
+The integration points are:
+
+1. The service worker **caches the compiled Elm bundle** as part of the app shell
+2. **Ports** bridge Elm to browser APIs for connectivity state, install prompts,
+   notification permissions, and offline storage (IndexedDB)
+3. `elm/http` requests are **transparently intercepted** by the service worker,
+   enabling offline API responses without any changes to the Elm code
+
+## Sources
+
+- [MDN: Best practices for PWAs](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Best_practices)
+- [web.dev: Learn PWA](https://web.dev/learn/pwa/)
+- [Chrome: Workbox caching strategies](https://developer.chrome.com/docs/workbox/caching-strategies-overview)
+- [Chrome: Revisiting installability criteria](https://developer.chrome.com/blog/update-install-criteria)
+- [Chrome: Service worker lifecycle](https://developer.chrome.com/docs/workbox/service-worker-lifecycle)
+- [Chrome: Handling service worker updates](https://developer.chrome.com/docs/workbox/handling-service-worker-updates)
+- [Chrome: Precaching dos and don'ts](https://developer.chrome.com/docs/workbox/precaching-dos-and-donts)
+- [WebKit: Features in Safari 18.4](https://webkit.org/blog/16574/webkit-features-in-safari-18-4/)
+- [Apple: Declarative Web Push (WWDC25)](https://developer.apple.com/videos/play/wwdc2025/235/)
+- [gHacks: Firefox 143 PWA support](https://www.ghacks.net/2025/09/16/mozilla-firefox-143-0-adds-support-for-progressive-web-apps-copilot-on-sidebar-important-dates-in-the-address-bar/)
+- [Elm Discourse: Service Worker FFI](https://discourse.elm-lang.org/t/service-worker-ffi/6408)
+- [Elm Discourse: elm/http works with ServiceWorker](https://discourse.elm-lang.org/t/psa-elm-http-works-with-serviceworker/2562)
+- [Offline POST requests with Elm and Service Worker](https://notes.eellson.com/2018/02/26/offline-post-requests-with-elm-and-service-worker/)
+- [Elm Guide: Asset Size Optimization](https://guide.elm-lang.org/optimization/asset_size.html)
+- [elm-concurrent-task](https://github.com/andrewMacmurray/elm-concurrent-task)
+- [dwyl/elm-pwa-example](https://github.com/dwyl/elm-pwa-example)
+- [dennistruemper/elm-land-pwa-example](https://github.com/dennistruemper/elm-land-pwa-example)
+- [lucamug/elm-starter](https://github.com/lucamug/elm-starter)
