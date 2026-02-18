@@ -70,11 +70,3 @@ jobs:
       - name: Create the service worker
         run: node build-sw.mjs
         working-directory: examples/demo
-
-      - name: Deploy to Cloudflare Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy examples/demo/static/ --project-name=elm-pwa-demo

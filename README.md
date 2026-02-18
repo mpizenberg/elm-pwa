@@ -317,14 +317,7 @@ Features planned for future releases:
 
 A live demo is deployed to Cloudflare Pages at
 [elm-pwa-demo.pages.dev](https://elm-pwa-demo.pages.dev).
-
-The CI workflow (`.github/workflows/ci.yml`) automatically deploys the
-`examples/demo/static/` directory on every push to `main` using
-`cloudflare/wrangler-action`. Two repository secrets are required:
-
-- `CLOUDFLARE_ACCOUNT_ID` — from the Cloudflare dashboard sidebar
-- `CLOUDFLARE_API_TOKEN` — create at https://dash.cloudflare.com/profile/api-tokens
-  with **Cloudflare Pages: Edit** permission
+Deployments are triggered automatically by Cloudflare on each push to `main`.
 
 ## How it works
 
