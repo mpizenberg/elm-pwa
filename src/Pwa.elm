@@ -20,8 +20,13 @@ Then wires them as follows:
 
     update msg model =
         case msg of
+            GotPwaEvent (Ok event) ->
+                -- Handle each Pwa.Event variant
+                ...
             AcceptUpdate ->
                 ( model, Pwa.acceptUpdate pwaOut )
+            RequestInstall -> ...
+            ...
 
 
 # Events
