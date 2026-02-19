@@ -60,8 +60,6 @@ type alias Model =
     , installAvailable : Bool
     , isInstalled : Bool
     , platform : Platform
-    , notes : List String
-    , draft : String
     , notificationPermission : Maybe Pwa.NotificationPermission
     , pushSubscription : Maybe Encode.Value
     , lastNotificationUrl : Maybe String
@@ -94,8 +92,6 @@ init flags =
       , installAvailable = False
       , isInstalled = flags.isStandalone
       , platform = parsePlatform flags.platform
-      , notes = [ "This note was created offline-ready" ]
-      , draft = ""
       , notificationPermission = Nothing
       , pushSubscription = Nothing
       , lastNotificationUrl = Nothing
@@ -118,9 +114,6 @@ type Msg
     = GotPwaEvent (Result Decode.Error Pwa.Event)
     | AcceptUpdate
     | RequestInstall
-    | SetDraft String
-    | AddNote
-    | RemoveNote Int
     | RequestNotificationPermission
     | SubscribePush
     | UnsubscribePush
@@ -188,24 +181,6 @@ update msg model =
 
         RequestInstall ->
             ( model, Pwa.requestInstall pwaOut )
-
-        SetDraft draft ->
-            ( { model | draft = draft }, Cmd.none )
-
-        AddNote ->
-            if String.isEmpty (String.trim model.draft) then
-                ( model, Cmd.none )
-
-            else
-                ( { model
-                    | notes = model.notes ++ [ String.trim model.draft ]
-                    , draft = ""
-                  }
-                , Cmd.none
-                )
-
-        RemoveNote index ->
-            ( { model | notes = removeAt index model.notes }, Cmd.none )
 
         RequestNotificationPermission ->
             ( model, Pwa.requestNotificationPermission pwaOut )
@@ -310,23 +285,6 @@ unregisterSubscription endpoint =
 
 
 
--- HELPERS
-
-
-removeAt : Int -> List a -> List a
-removeAt index list =
-    List.indexedMap Tuple.pair list
-        |> List.filterMap
-            (\( i, item ) ->
-                if i == index then
-                    Nothing
-
-                else
-                    Just item
-            )
-
-
-
 -- VIEW
 
 
@@ -414,24 +372,7 @@ viewInstallButton model =
 viewMain : Model -> Html Msg
 viewMain model =
     main_ []
-        [ section []
-            [ h2 [] [ text "Notes" ]
-            , p [ class "hint" ]
-                [ text "Add notes below. The app works offline thanks to the service worker cache." ]
-            , div [ class "note-input" ]
-                [ input
-                    [ type_ "text"
-                    , placeholder "Write a note..."
-                    , value model.draft
-                    , onInput SetDraft
-                    , onEnter AddNote
-                    ]
-                    []
-                , button [ onClick AddNote ] [ text "Add" ]
-                ]
-            , viewNotes model.notes
-            ]
-        , viewPushNotifications model
+        [ viewPushNotifications model
         , section []
             [ h2 [] [ text "How This Works" ]
             , dl []
@@ -565,24 +506,6 @@ permissionToString maybePerm =
 
         Just Pwa.Unsupported ->
             "Unsupported"
-
-
-viewNotes : List String -> Html Msg
-viewNotes notes =
-    if List.isEmpty notes then
-        p [ class "empty" ] [ text "No notes yet." ]
-
-    else
-        ul [ class "notes" ]
-            (List.indexedMap viewNote notes)
-
-
-viewNote : Int -> String -> Html Msg
-viewNote index note =
-    li []
-        [ span [] [ text note ]
-        , button [ class "remove-btn", onClick (RemoveNote index) ] [ text "x" ]
-        ]
 
 
 onEnter : msg -> Attribute msg
