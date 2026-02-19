@@ -151,7 +151,11 @@ self.addEventListener("message", function (event) {
   }
 });
 
-// Push: show a notification from the push payload
+// Push: show a notification from the push payload.
+// Supports both the declarative format ({ web_push: 8030, notification: {...} })
+// and the flat legacy format ({ title, body, ... }).
+// On Safari 18.4+, declarative payloads are handled natively by the browser
+// and this handler is not invoked. On other browsers, it parses the same JSON.
 self.addEventListener("push", function (event) {
   var payload = {};
   if (event.data) {
@@ -161,13 +165,14 @@ self.addEventListener("push", function (event) {
       payload = { title: event.data.text() || "New notification" };
     }
   }
-  var title = payload.title || "New notification";
+  var n = payload.notification || payload;
+  var title = n.title || "New notification";
   var options = {
-    body: payload.body || "",
-    icon: payload.icon || "",
-    badge: payload.badge || "",
-    tag: payload.tag || "",
-    data: payload.data || {},
+    body: n.body || "",
+    icon: n.icon || "",
+    badge: n.badge || "",
+    tag: n.tag || "",
+    data: n.data || {},
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });

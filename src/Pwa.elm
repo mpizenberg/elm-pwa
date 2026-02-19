@@ -60,7 +60,10 @@ import Json.Encode as Encode
   - `NotificationPermissionChanged` — the notification permission state changed
   - `PushSubscription` — an active push subscription (opaque JSON to forward to your backend)
   - `PushUnsubscribed` — the push subscription was removed
-  - `NotificationClicked` — a push notification was clicked, carrying the target URL
+  - `NotificationClicked` — a push notification was clicked, carrying the target URL.
+    **Caveat**: on Safari 18.4+ with Declarative Web Push, notification clicks are
+    handled natively by the browser (navigating directly to the URL) and this event
+    will not fire.
 
 -}
 type Event

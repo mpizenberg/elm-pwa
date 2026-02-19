@@ -216,29 +216,49 @@ for a complete implementation.
 
 ### Push payload format
 
-The service worker expects push payloads as JSON:
+The recommended payload format wraps notification fields in the
+[Declarative Web Push](https://webkit.org/blog/16535/meet-declarative-web-push/) structure:
 
 ```json
 {
-  "title": "New message",
-  "body": "You have a new message from Alice",
-  "icon": "/icons/icon-192.png",
-  "badge": "/icons/badge-72.png",
-  "tag": "message-123",
-  "data": { "url": "/messages/123" }
+  "web_push": 8030,
+  "notification": {
+    "title": "New message",
+    "body": "You have a new message from Alice",
+    "icon": "/icons/icon-192.png",
+    "badge": "/icons/badge-72.png",
+    "tag": "message-123",
+    "data": { "url": "/messages/123" }
+  }
 }
 ```
 
-The `data.url` field determines which URL is sent in the `NotificationClicked` event.
+The `notification.data.url` field determines which URL is sent in the `NotificationClicked` event.
+
+The flat legacy format (without the `web_push` / `notification` wrapper) is also supported
+by the service worker for backwards compatibility.
 
 ### Declarative Web Push (Safari 18.4+)
 
-This library currently uses the traditional Push API with service worker delivery.
 Apple introduced Declarative Web Push in Safari 18.4 (March 2025),
 which does **not require a service worker** for push delivery.
 This reduces battery/CPU usage and simplifies implementation.
 Available on macOS (Safari 18.5+) and iOS/iPadOS 18.4+ for home screen web apps.
-Future versions may support this as a lighter-weight alternative.
+
+The service worker's push handler supports both the declarative format and the
+flat legacy format. No client-side feature detection is needed — the dispatch
+happens per-message on the browser side:
+
+- **Safari 18.4+**: sees `"web_push": 8030`, displays the notification natively
+  without waking the service worker.
+- **Other browsers**: ignore the `"web_push"` key, fire the service worker's
+  `push` event as usual, which parses the same JSON.
+
+**Caveat**: on Safari 18.4+, declarative notifications bypass the service worker entirely,
+including the `notificationclick` handler. Clicking a notification navigates directly
+to the URL in `notification.data.url` instead of sending a `NotificationClicked` event
+to Elm. Apps that need to intercept notification clicks in Elm should be aware of this
+difference on Safari.
 
 ## Web App Manifest
 
