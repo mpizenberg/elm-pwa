@@ -25,7 +25,7 @@ pushServerUrl =
 -- MAIN
 
 
-main : Program { isOnline : Bool, topic : String, isStandalone : Bool } Model Msg
+main : Program { isOnline : Bool, topic : String, isStandalone : Bool, platform : String } Model Msg
 main =
     Browser.element
         { init = init
@@ -48,11 +48,18 @@ subscriptions _ =
 -- MODEL
 
 
+type Platform
+    = IOS
+    | Android
+    | Desktop
+
+
 type alias Model =
     { isOnline : Bool
     , updateAvailable : Bool
     , installAvailable : Bool
     , isInstalled : Bool
+    , platform : Platform
     , notes : List String
     , draft : String
     , notificationPermission : Maybe Pwa.NotificationPermission
@@ -67,12 +74,26 @@ type alias Model =
     }
 
 
-init : { isOnline : Bool, topic : String, isStandalone : Bool } -> ( Model, Cmd Msg )
+parsePlatform : String -> Platform
+parsePlatform str =
+    case str of
+        "ios" ->
+            IOS
+
+        "android" ->
+            Android
+
+        _ ->
+            Desktop
+
+
+init : { isOnline : Bool, topic : String, isStandalone : Bool, platform : String } -> ( Model, Cmd Msg )
 init flags =
     ( { isOnline = flags.isOnline
       , updateAvailable = False
       , installAvailable = False
       , isInstalled = flags.isStandalone
+      , platform = parsePlatform flags.platform
       , notes = [ "This note was created offline-ready" ]
       , draft = ""
       , notificationPermission = Nothing
@@ -373,11 +394,21 @@ viewInstallButton model =
         button [ class "install-btn", onClick RequestInstall ] [ text "Install App" ]
 
     else
-        span [ class "install-hint" ]
-            [ text "To install: tap "
-            , span [ class "share-icon" ] [ text "Share" ]
-            , text " then \"Add to Home Screen\""
-            ]
+        case model.platform of
+            IOS ->
+                span [ class "install-hint" ]
+                    [ text "To install: tap "
+                    , span [ class "share-icon" ] [ text "Share" ]
+                    , text " then \"Add to Home Screen\""
+                    ]
+
+            Android ->
+                span [ class "install-hint" ]
+                    [ text "To install: open browser menu (⋮) then \"Add to Home Screen\"" ]
+
+            Desktop ->
+                span [ class "install-hint" ]
+                    [ text "To install: use your browser's install option in the address bar" ]
 
 
 viewMain : Model -> Html Msg

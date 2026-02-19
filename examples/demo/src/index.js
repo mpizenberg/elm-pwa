@@ -8,7 +8,18 @@ if (!topic) {
 
 var app = window.Elm.Main.init({
   node: document.getElementById("app"),
-  flags: { isOnline: navigator.onLine, topic: topic, isStandalone: window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true },
+  flags: {
+    isOnline: navigator.onLine,
+    topic: topic,
+    isStandalone:
+      window.matchMedia("(display-mode: standalone)").matches ||
+      navigator.standalone === true,
+    platform: /iPad|iPhone|iPod/.test(navigator.userAgent)
+      ? "ios"
+      : /Android/.test(navigator.userAgent)
+        ? "android"
+        : "desktop",
+  },
 });
 
 init({
