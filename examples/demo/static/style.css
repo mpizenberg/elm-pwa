@@ -88,6 +88,20 @@ header h1 {
     font-weight: 600;
 }
 
+.install-hint {
+    font-size: 0.75rem;
+    color: #666;
+}
+
+.share-icon {
+    display: inline-block;
+    border: 1px solid #999;
+    border-radius: 3px;
+    padding: 0 4px;
+    font-size: 0.7rem;
+    vertical-align: middle;
+}
+
 /* Main content */
 section {
     margin: 24px 0;

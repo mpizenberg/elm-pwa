@@ -25,7 +25,7 @@ pushServerUrl =
 -- MAIN
 
 
-main : Program { isOnline : Bool, topic : String } Model Msg
+main : Program { isOnline : Bool, topic : String, isStandalone : Bool } Model Msg
 main =
     Browser.element
         { init = init
@@ -67,12 +67,12 @@ type alias Model =
     }
 
 
-init : { isOnline : Bool, topic : String } -> ( Model, Cmd Msg )
+init : { isOnline : Bool, topic : String, isStandalone : Bool } -> ( Model, Cmd Msg )
 init flags =
     ( { isOnline = flags.isOnline
       , updateAvailable = False
       , installAvailable = False
-      , isInstalled = False
+      , isInstalled = flags.isStandalone
       , notes = [ "This note was created offline-ready" ]
       , draft = ""
       , notificationPermission = Nothing
@@ -373,7 +373,11 @@ viewInstallButton model =
         button [ class "install-btn", onClick RequestInstall ] [ text "Install App" ]
 
     else
-        text ""
+        span [ class "install-hint" ]
+            [ text "To install: tap "
+            , span [ class "share-icon" ] [ text "Share" ]
+            , text " then \"Add to Home Screen\""
+            ]
 
 
 viewMain : Model -> Html Msg
