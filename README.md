@@ -233,10 +233,12 @@ The `data.url` field determines which URL is sent in the `NotificationClicked` e
 
 ### Declarative Web Push (Safari 18.4+)
 
+This library currently uses the traditional Push API with service worker delivery.
 Apple introduced Declarative Web Push in Safari 18.4 (March 2025),
 which does **not require a service worker** for push delivery.
 This reduces battery/CPU usage and simplifies implementation.
 Available on macOS (Safari 18.5+) and iOS/iPadOS 18.4+ for home screen web apps.
+Future versions may support this as a lighter-weight alternative.
 
 ## Web App Manifest
 
@@ -338,7 +340,9 @@ The `init()` function handles this automatically by:
 ## Cache Busting
 
 By default, you bump `cacheName` manually on each deploy. For automated cache
-invalidation, hash your assets in the build script and include the hash in the URL:
+invalidation, hash your assets in the build script and include the combined hash
+in `cacheName`. When `cacheName` changes, the service worker creates a fresh cache
+and deletes the old one during activation, so no per-file query strings are needed:
 
 ```javascript
 // build-sw.mjs
@@ -346,32 +350,24 @@ import { generateSW } from "elm-pwa/build";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 
-function hash(file) {
-  return createHash("sha256")
-    .update(readFileSync(file))
-    .digest("hex")
-    .slice(0, 8);
+function combinedHash(...files) {
+  var h = createHash("sha256");
+  files.forEach(function (f) {
+    h.update(readFileSync(f));
+  });
+  return h.digest("hex").slice(0, 8);
 }
-
-var elmHash = hash("static/elm.js");
-var cssHash = hash("static/style.css");
 
 writeFileSync(
   "static/sw.js",
   generateSW({
-    cacheName: "my-app-" + elmHash,
-    precacheUrls: [
-      "/",
-      "/elm.js?v=" + elmHash,
-      "/style.css?v=" + cssHash,
-      "/manifest.webmanifest",
-    ],
+    cacheName: "my-app-" + combinedHash("static/elm.js", "static/style.css"),
+    precacheUrls: ["/", "/elm.js", "/style.css", "/manifest.webmanifest"],
   }),
 );
 ```
 
-Then use the same query strings in your HTML `<script>` and `<link>` tags.
-This way, `cacheName` changes automatically whenever the content changes,
+This way, `cacheName` changes automatically whenever any asset changes,
 triggering the update flow without manual version bumping.
 
 ## Install Experience
