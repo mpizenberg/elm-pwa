@@ -37,7 +37,7 @@ update msg model =
             ( model, Pwa.requestInstall pwaOut )
 ```
 
-See [`examples/demo/src/Main.elm`](examples/demo/src/Main.elm) for a complete working example
+See [`examples/demo/src/Main.elm`](https://github.com/mpizenberg/elm-pwa/blob/main/examples/demo/src/Main.elm) for a complete working example
 that handles all events.
 
 ### 3. Initialize the JS side
@@ -209,7 +209,7 @@ Web Push is supported across all major browsers:
 
 4. **Handle notification clicks** — when the user clicks a notification, a `NotificationClicked` event arrives with the target URL. Use this to navigate within your SPA.
 
-See the push notification handling in [`examples/demo/src/Main.elm`](examples/demo/src/Main.elm)
+See the push notification handling in [`examples/demo/src/Main.elm`](https://github.com/mpizenberg/elm-pwa/blob/main/examples/demo/src/Main.elm)
 for a complete implementation.
 
 ### Push payload format
