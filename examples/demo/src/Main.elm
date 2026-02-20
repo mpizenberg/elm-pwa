@@ -363,13 +363,8 @@ viewInstallButton model =
                     , text " then \"Add to Home Screen\""
                     ]
 
-            Android ->
-                span [ class "install-hint" ]
-                    [ text "To install: open browser menu (⋮) then \"Add to Home Screen\"" ]
-
-            Desktop ->
-                span [ class "install-hint" ]
-                    [ text "To install: use your browser's install option in the address bar" ]
+            _ ->
+                text ""
 
 
 viewMain : Model -> Html Msg
