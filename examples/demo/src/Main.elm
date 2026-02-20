@@ -471,22 +471,9 @@ viewSendTestNotification model =
             div []
                 [ h3 [] [ text "Send Test Notification" ]
                 , div [ class "note-input" ]
-                    [ input
-                        [ type_ "text"
-                        , placeholder "Title"
-                        , value model.notifyTitle
-                        , onInput SetNotifyTitle
-                        ]
-                        []
-                    , input
-                        [ type_ "text"
-                        , placeholder "Body"
-                        , value model.notifyBody
-                        , onInput SetNotifyBody
-                        , onEnter SendTestNotification
-                        ]
-                        []
-                    , button [ onClick SendTestNotification ] [ text "Send" ]
+                    [ div [] [ input [ type_ "text", placeholder "Title", value model.notifyTitle, onInput SetNotifyTitle ] [] ]
+                    , div [] [ input [ type_ "text", placeholder "Body", value model.notifyBody, onInput SetNotifyBody, onEnter SendTestNotification ] [] ]
+                    , div [] [ button [ onClick SendTestNotification ] [ text "Send" ] ]
                     ]
                 , case model.notifySent of
                     Just True ->
