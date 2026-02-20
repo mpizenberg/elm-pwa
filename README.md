@@ -214,6 +214,10 @@ Web Push is supported across all major browsers:
 See the push notification handling in [`examples/demo/src/Main.elm`](https://github.com/mpizenberg/elm-pwa/blob/main/examples/demo/src/Main.elm)
 for a complete implementation.
 
+For the backend, [go-notify-server](https://github.com/mpizenberg/go-notify-server) is a minimal
+self-hosted Web Push server (single Go binary, embedded SQLite) that implements VAPID authentication
+and per-topic subscription management. It can serve as a starting point or a lightweight production server.
+
 ### Push payload format
 
 The recommended payload format wraps notification fields in the
