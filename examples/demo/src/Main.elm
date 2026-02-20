@@ -63,6 +63,7 @@ type alias Model =
     , notificationPermission : Maybe Pwa.NotificationPermission
     , pushSubscription : Maybe Encode.Value
     , lastNotificationUrl : Maybe String
+    , notificationClickCount : Int
     , vapidPublicKey : Maybe String
     , pushError : Maybe String
     , topic : String
@@ -95,6 +96,7 @@ init flags =
       , notificationPermission = Nothing
       , pushSubscription = Nothing
       , lastNotificationUrl = Nothing
+      , notificationClickCount = 0
       , vapidPublicKey = Nothing
       , pushError = Nothing
       , topic = flags.topic
@@ -174,7 +176,7 @@ update msg model =
                     )
 
                 Pwa.NotificationClicked url ->
-                    ( { model | lastNotificationUrl = Just url }, Cmd.none )
+                    ( { model | lastNotificationUrl = Just url, notificationClickCount = model.notificationClickCount + 1 }, Cmd.none )
 
         GotPwaEvent (Err _) ->
             ( model, Cmd.none )
@@ -437,14 +439,15 @@ viewPushNotifications model =
                         ]
                     , dt [] [ text "Last Notification Click" ]
                     , dd []
-                        [ text
-                            (case model.lastNotificationUrl of
-                                Just url ->
-                                    url
+                        [ case model.lastNotificationUrl of
+                            Just url ->
+                                div []
+                                    [ div [] [ text ("URL: " ++ url) ]
+                                    , div [] [ text ("Count: " ++ String.fromInt model.notificationClickCount) ]
+                                    ]
 
-                                Nothing ->
-                                    "None"
-                            )
+                            Nothing ->
+                                text "None"
                         ]
                     ]
                 , viewSendTestNotification model
