@@ -19,7 +19,7 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
+    width: 100%;
     background: #1293d8;
     color: #fff;
     padding: 12px;
