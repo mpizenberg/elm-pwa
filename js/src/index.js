@@ -190,8 +190,13 @@ export function init({ ports, swUrl }) {
               subscription: sub.toJSON(),
             });
           })
-          .catch(function () {
-            sendNotificationPermission();
+          .catch(function (err) {
+            pwaIn.send({
+              tag: "pushSubscriptionError",
+              error: err
+                ? err.message || String(err)
+                : "Push subscription failed",
+            });
           });
         break;
 

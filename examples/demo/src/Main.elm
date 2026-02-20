@@ -151,6 +151,9 @@ update msg model =
                     , registerSubscription model.topic subscription
                     )
 
+                Pwa.PushSubscriptionError error ->
+                    ( { model | pushError = Just error }, Cmd.none )
+
                 Pwa.PushUnsubscribed ->
                     let
                         endpoint =
@@ -395,58 +398,68 @@ viewPushNotifications : Model -> Html Msg
 viewPushNotifications model =
     section []
         [ h2 [] [ text "Push Notifications" ]
-        , dl []
-            [ dt [] [ text "Permission" ]
-            , dd []
-                [ text (permissionToString model.notificationPermission)
-                , case model.notificationPermission of
-                    Just Pwa.Default ->
-                        button [ onClick RequestNotificationPermission, style "margin-left" "8px" ]
-                            [ text "Enable Notifications" ]
-
-                    Nothing ->
-                        button [ onClick RequestNotificationPermission, style "margin-left" "8px" ]
-                            [ text "Enable Notifications" ]
-
-                    _ ->
-                        text ""
+        , if model.platform == IOS && not model.isInstalled then
+            p []
+                [ text "Push notifications on iOS require the app to be installed. Tap "
+                , span [ class "share-icon" ] [ text "Share" ]
+                , text " then \"Add to Home Screen\" first."
                 ]
-            , dt [] [ text "Push Subscription" ]
-            , dd []
-                [ case model.pushSubscription of
-                    Just _ ->
-                        span []
-                            [ text "Active "
-                            , button [ onClick UnsubscribePush ] [ text "Unsubscribe" ]
-                            ]
 
-                    Nothing ->
-                        case model.notificationPermission of
-                            Just Pwa.Granted ->
-                                button [ onClick SubscribePush ] [ text "Subscribe to Push" ]
+          else
+            div []
+                [ dl []
+                    [ dt [] [ text "Permission" ]
+                    , dd []
+                        [ text (permissionToString model.notificationPermission)
+                        , case model.notificationPermission of
+                            Just Pwa.Default ->
+                                button [ onClick RequestNotificationPermission, style "margin-left" "8px" ]
+                                    [ text "Enable Notifications" ]
+
+                            Nothing ->
+                                button [ onClick RequestNotificationPermission, style "margin-left" "8px" ]
+                                    [ text "Enable Notifications" ]
 
                             _ ->
-                                text "Not subscribed (grant notification permission first)"
-                ]
-            , dt [] [ text "Last Notification Click" ]
-            , dd []
-                [ text
-                    (case model.lastNotificationUrl of
-                        Just url ->
-                            url
+                                text ""
+                        ]
+                    , dt [] [ text "Push Subscription" ]
+                    , dd []
+                        [ case model.pushSubscription of
+                            Just _ ->
+                                span []
+                                    [ text "Active "
+                                    , button [ onClick UnsubscribePush ] [ text "Unsubscribe" ]
+                                    ]
 
-                        Nothing ->
-                            "None"
-                    )
-                ]
-            ]
-        , viewSendTestNotification model
-        , case model.pushError of
-            Just err ->
-                p [ style "color" "red" ] [ text err ]
+                            Nothing ->
+                                case model.notificationPermission of
+                                    Just Pwa.Granted ->
+                                        button [ onClick SubscribePush ] [ text "Subscribe to Push" ]
 
-            Nothing ->
-                text ""
+                                    _ ->
+                                        text "Not subscribed (grant notification permission first)"
+                        ]
+                    , dt [] [ text "Last Notification Click" ]
+                    , dd []
+                        [ text
+                            (case model.lastNotificationUrl of
+                                Just url ->
+                                    url
+
+                                Nothing ->
+                                    "None"
+                            )
+                        ]
+                    ]
+                , viewSendTestNotification model
+                , case model.pushError of
+                    Just err ->
+                        p [ style "color" "red" ] [ text err ]
+
+                    Nothing ->
+                        text ""
+                ]
         ]
 
 

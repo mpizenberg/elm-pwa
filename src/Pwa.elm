@@ -59,6 +59,7 @@ import Json.Encode as Encode
   - `Installed` — the app was installed to the home screen / desktop
   - `NotificationPermissionChanged` — the notification permission state changed
   - `PushSubscription` — an active push subscription (opaque JSON to forward to your backend)
+  - `PushSubscriptionError` — push subscription failed, carrying an error message
   - `PushUnsubscribed` — the push subscription was removed
   - `NotificationClicked` — a push notification was clicked, carrying the target URL.
     **Caveat**: on Safari 18.4+ with Declarative Web Push, notification clicks are
@@ -73,6 +74,7 @@ type Event
     | Installed
     | NotificationPermissionChanged NotificationPermission
     | PushSubscription Encode.Value
+    | PushSubscriptionError String
     | PushUnsubscribed
     | NotificationClicked String
 
@@ -129,6 +131,10 @@ eventDecoder =
                     "pushSubscription" ->
                         Decode.field "subscription" Decode.value
                             |> Decode.map PushSubscription
+
+                    "pushSubscriptionError" ->
+                        Decode.field "error" Decode.string
+                            |> Decode.map PushSubscriptionError
 
                     "pushUnsubscribed" ->
                         Decode.succeed PushUnsubscribed

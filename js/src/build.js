@@ -167,13 +167,12 @@ self.addEventListener("push", function (event) {
   }
   var n = payload.notification || payload;
   var title = n.title || "New notification";
-  var options = {
-    body: n.body || "",
-    icon: n.icon || "",
-    badge: n.badge || "",
-    tag: n.tag || "",
-    data: n.data || {},
-  };
+  var options = {};
+  if (n.body) options.body = n.body;
+  if (n.icon) options.icon = n.icon;
+  if (n.badge) options.badge = n.badge;
+  if (n.tag) options.tag = n.tag;
+  if (n.data) options.data = n.data;
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
