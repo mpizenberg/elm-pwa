@@ -27,6 +27,12 @@ body {
     z-index: 100;
 }
 
+.banner.banner-success {
+    background: #27862a;
+    top: auto;
+    bottom: 0;
+}
+
 .banner button {
     background: #fff;
     color: #1293d8;
@@ -36,6 +42,10 @@ body {
     cursor: pointer;
     font-weight: bold;
     margin-left: 8px;
+}
+
+.banner.banner-success button {
+    color: #27862a;
 }
 
 /* Header */

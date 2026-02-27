@@ -59,6 +59,7 @@ type alias Model =
     , updateAvailable : Bool
     , installAvailable : Bool
     , isInstalled : Bool
+    , justInstalled : Bool
     , platform : Platform
     , notificationPermission : Maybe Pwa.NotificationPermission
     , pushSubscription : Maybe Encode.Value
@@ -92,6 +93,7 @@ init flags =
       , updateAvailable = False
       , installAvailable = False
       , isInstalled = flags.isStandalone
+      , justInstalled = False
       , platform = parsePlatform flags.platform
       , notificationPermission = Nothing
       , pushSubscription = Nothing
@@ -125,6 +127,7 @@ type Msg
     | SetNotifyTitle String
     | SetNotifyBody String
     | SendTestNotification
+    | DismissInstallBanner
     | NotificationSent (Result Http.Error ())
 
 
@@ -143,7 +146,7 @@ update msg model =
                     ( { model | installAvailable = True }, Cmd.none )
 
                 Pwa.Installed ->
-                    ( { model | installAvailable = False, isInstalled = True }, Cmd.none )
+                    ( { model | installAvailable = False, isInstalled = True, justInstalled = True }, Cmd.none )
 
                 Pwa.NotificationPermissionChanged permission ->
                     ( { model | notificationPermission = Just permission }, Cmd.none )
@@ -183,6 +186,9 @@ update msg model =
 
         AcceptUpdate ->
             ( model, Pwa.acceptUpdate pwaOut )
+
+        DismissInstallBanner ->
+            ( { model | justInstalled = False }, Cmd.none )
 
         RequestInstall ->
             ( model, Pwa.requestInstall pwaOut )
@@ -297,6 +303,7 @@ view : Model -> Html Msg
 view model =
     div [ class "app" ]
         [ viewUpdateBanner model.updateAvailable
+        , viewInstallBanner model.justInstalled
         , viewHeader model
         , viewMain model
         , viewFooter
@@ -309,6 +316,18 @@ viewUpdateBanner visible =
         div [ class "banner" ]
             [ text "A new version is available. "
             , button [ onClick AcceptUpdate ] [ text "Update now" ]
+            ]
+
+    else
+        text ""
+
+
+viewInstallBanner : Bool -> Html Msg
+viewInstallBanner visible =
+    if visible then
+        div [ class "banner banner-success" ]
+            [ text "App installed! You can now close this tab and open Elm PWA from your home screen. "
+            , button [ onClick DismissInstallBanner ] [ text "Dismiss" ]
             ]
 
     else
