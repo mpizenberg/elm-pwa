@@ -126,6 +126,19 @@ export function init({ ports, swUrl }) {
     pwaIn.send({ tag: "installed" });
   });
 
+  // --- Detect installed PWA opened in the browser ---
+
+  var isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    navigator.standalone === true;
+  if (!isStandalone && "getInstalledRelatedApps" in navigator) {
+    navigator.getInstalledRelatedApps().then(function (apps) {
+      if (apps.length > 0) {
+        pwaIn.send({ tag: "installedInBrowser" });
+      }
+    });
+  }
+
   // --- Commands from Elm ---
 
   pwaOut.subscribe(function (msg) {

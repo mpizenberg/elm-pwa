@@ -57,6 +57,7 @@ import Json.Encode as Encode
   - `UpdateAvailable` — a new service worker is installed and waiting to activate
   - `InstallAvailable` — the browser's install prompt can be triggered (Chromium only)
   - `Installed` — the app was installed to the home screen / desktop
+  - `InstalledInBrowser` — the PWA is installed but the user is viewing the site in the browser (Chromium only)
   - `NotificationPermissionChanged` — the notification permission state changed
   - `PushSubscription` — an active push subscription (opaque JSON to forward to your backend)
   - `PushSubscriptionError` — push subscription failed, carrying an error message
@@ -72,6 +73,7 @@ type Event
     | UpdateAvailable
     | InstallAvailable
     | Installed
+    | InstalledInBrowser
     | NotificationPermissionChanged NotificationPermission
     | PushSubscription Encode.Value
     | PushSubscriptionError String
@@ -123,6 +125,9 @@ eventDecoder =
 
                     "installed" ->
                         Decode.succeed Installed
+
+                    "installedInBrowser" ->
+                        Decode.succeed InstalledInBrowser
 
                     "notificationPermissionChanged" ->
                         Decode.field "permission" notificationPermissionDecoder

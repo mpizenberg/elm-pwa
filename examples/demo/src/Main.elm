@@ -60,6 +60,7 @@ type alias Model =
     , installAvailable : Bool
     , isInstalled : Bool
     , justInstalled : Bool
+    , installedInBrowser : Bool
     , platform : Platform
     , notificationPermission : Maybe Pwa.NotificationPermission
     , pushSubscription : Maybe Encode.Value
@@ -94,6 +95,7 @@ init flags =
       , installAvailable = False
       , isInstalled = flags.isStandalone
       , justInstalled = False
+      , installedInBrowser = False
       , platform = parsePlatform flags.platform
       , notificationPermission = Nothing
       , pushSubscription = Nothing
@@ -147,6 +149,9 @@ update msg model =
 
                 Pwa.Installed ->
                     ( { model | installAvailable = False, isInstalled = True, justInstalled = True }, Cmd.none )
+
+                Pwa.InstalledInBrowser ->
+                    ( { model | installedInBrowser = True }, Cmd.none )
 
                 Pwa.NotificationPermissionChanged permission ->
                     ( { model | notificationPermission = Just permission }, Cmd.none )
@@ -374,6 +379,10 @@ viewInstallButton model =
 
     else if model.installAvailable then
         button [ class "install-btn", onClick RequestInstall ] [ text "Install App" ]
+
+    else if model.installedInBrowser then
+        span [ class "install-hint" ]
+            [ text "App is installed — open it from your home screen" ]
 
     else
         case model.platform of
