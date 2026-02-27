@@ -41,6 +41,18 @@ Bump `cacheName` in `build-sw.mjs` on each deploy to trigger the update flow.
 5. JS tells the waiting SW to `skipWaiting`
 6. `controllerchange` fires and the page reloads
 
+### Install flow
+
+1. On Chromium, `beforeinstallprompt` fires and the app shows an "Install App" button
+2. User clicks the button, Elm sends `requestInstall` through `pwaOut`, browser shows its native dialog
+3. After installation, `appinstalled` fires and the app shows a banner:
+   "App installed! You can now close this tab and open Elm PWA from your home screen."
+4. If the user later opens the website in the browser (not the installed PWA),
+   `getInstalledRelatedApps()` detects this and shows a hint:
+   "App is installed — open it from your home screen"
+
+On iOS, the app shows a hint to use Safari's Share > "Add to Home Screen" instead.
+
 ## Running the example
 
 ```sh

@@ -132,6 +132,7 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 | `UpdateAvailable`                                      | A new service worker is installed and waiting                     |
 | `InstallAvailable`                                     | The browser's install prompt can be triggered                     |
 | `Installed`                                            | The app was installed                                             |
+| `InstalledInBrowser`                                   | PWA is installed but user is browsing the site in the browser (Chromium only) |
 | `NotificationPermissionChanged NotificationPermission` | Notification permission state changed                             |
 | `PushSubscription Value`                               | Active push subscription (opaque JSON to forward to your backend) |
 | `PushUnsubscribed`                                     | Push subscription was removed                                     |
@@ -417,6 +418,37 @@ call `Pwa.requestInstall pwaOut` to show the browser's native install dialog.
 
 Browser support: Chromium only. Safari uses "Add to Home Screen" from the share menu.
 Firefox 143+ supports PWA install on Windows.
+
+### Post-install message
+
+When the user completes installation, the browser fires an `appinstalled` event.
+The `init()` function forwards this as an `Installed` event to Elm. Use this to
+show a friendly message suggesting the user close the browser tab and open the
+app from their home screen, since the browser tab remains open after installation.
+
+### Detecting an installed PWA from the browser
+
+When a user has already installed your PWA but opens the website in a regular
+browser tab, Chrome won't fire `beforeinstallprompt` (because the app is already
+installed), and the app isn't running in standalone mode — so there's no visible
+indication that the app is installed.
+
+The `init()` function uses `navigator.getInstalledRelatedApps()` to detect this
+situation and sends an `InstalledInBrowser` event to Elm. Use this to show a hint
+like "App is installed — open it from your home screen".
+
+This requires a `related_applications` entry in your manifest pointing to itself:
+
+```json
+{
+  "related_applications": [
+    { "platform": "webapp", "url": "/manifest.webmanifest" }
+  ]
+}
+```
+
+Browser support: Chromium only (Android, ChromeOS, Windows). Not available on
+iOS/Safari — there is no API to detect an installed PWA from Safari.
 
 ## Elm/JS Integration Patterns
 
