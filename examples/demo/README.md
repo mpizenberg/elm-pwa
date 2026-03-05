@@ -110,7 +110,8 @@ fans out to all subscriptions registered under that topic — in practice just t
 current device.
 
 Fill in a title and body, click **Send**, and a system notification should appear.
-Clicking it updates "Last Notification Click" in the app.
+Clicking it updates "Last Notification Click" in the app, displaying the full `data`
+payload that was attached to the notification.
 
 You can also trigger it from the command line:
 
@@ -127,7 +128,7 @@ To broadcast to **all** subscriptions (requires admin auth):
 curl -X POST https://push.dokploy.zidev.ovh/notify \
   -H "Authorization: Bearer YOUR_ADMIN_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"title": "Hello!", "body": "Push from go-notify-server", "url": "/test"}'
+  -d '{"title": "Hello!", "body": "Push from go-notify-server", "data": {"url": "/test"}}'
 ```
 
 ### Troubleshooting

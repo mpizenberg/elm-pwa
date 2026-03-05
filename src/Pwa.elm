@@ -62,7 +62,8 @@ import Json.Encode as Encode
   - `PushSubscription` — an active push subscription (opaque JSON to forward to your backend)
   - `PushSubscriptionError` — push subscription failed, carrying an error message
   - `PushUnsubscribed` — the push subscription was removed
-  - `NotificationClicked` — a push notification was clicked, carrying the target URL.
+  - `NotificationClicked` — a push notification was clicked, carrying the notification's
+    `data` payload as an opaque JSON value (whatever your server sent in `data`).
     **Caveat**: on Safari 18.4+ with Declarative Web Push, notification clicks are
     handled natively by the browser (navigating directly to the URL) and this event
     will not fire.
@@ -78,7 +79,7 @@ type Event
     | PushSubscription Encode.Value
     | PushSubscriptionError String
     | PushUnsubscribed
-    | NotificationClicked String
+    | NotificationClicked Decode.Value
 
 
 {-| The state of the browser's notification permission.
@@ -145,7 +146,7 @@ eventDecoder =
                         Decode.succeed PushUnsubscribed
 
                     "notificationClicked" ->
-                        Decode.field "url" Decode.string
+                        Decode.field "data" Decode.value
                             |> Decode.map NotificationClicked
 
                     _ ->

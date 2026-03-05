@@ -64,7 +64,7 @@ type alias Model =
     , platform : Platform
     , notificationPermission : Maybe Pwa.NotificationPermission
     , pushSubscription : Maybe Encode.Value
-    , lastNotificationUrl : Maybe String
+    , lastNotificationData : Maybe Decode.Value
     , notificationClickCount : Int
     , vapidPublicKey : Maybe String
     , pushError : Maybe String
@@ -101,7 +101,7 @@ init flags =
       , platform = parsePlatform flags.platform
       , notificationPermission = Nothing
       , pushSubscription = Nothing
-      , lastNotificationUrl = Nothing
+      , lastNotificationData = Nothing
       , notificationClickCount = 0
       , vapidPublicKey = Nothing
       , pushError = Nothing
@@ -189,8 +189,8 @@ update msg model =
                             Cmd.none
                     )
 
-                Pwa.NotificationClicked url ->
-                    ( { model | lastNotificationUrl = Just url, notificationClickCount = model.notificationClickCount + 1 }, Cmd.none )
+                Pwa.NotificationClicked data ->
+                    ( { model | lastNotificationData = Just data, notificationClickCount = model.notificationClickCount + 1 }, Cmd.none )
 
         GotPwaEvent (Err _) ->
             ( model, Cmd.none )
@@ -291,6 +291,12 @@ sendTestNotification topic title body tag silent =
             [ ( "title", Encode.string title )
             , ( "body", Encode.string body )
             , ( "icon", Encode.string "/icons/icon-192.png" )
+            , ( "data"
+              , Encode.object
+                    [ ( "url", Encode.string "/" )
+                    , ( "sender", Encode.string "elm-pwa-demo" )
+                    ]
+              )
             ]
 
         tagField =
@@ -498,10 +504,10 @@ viewPushNotifications model =
                         ]
                     , dt [] [ text "Last Notification Click" ]
                     , dd []
-                        [ case model.lastNotificationUrl of
-                            Just url ->
+                        [ case model.lastNotificationData of
+                            Just data ->
                                 div []
-                                    [ div [] [ text ("URL: " ++ url) ]
+                                    [ div [] [ text ("Data: " ++ Encode.encode 0 data) ]
                                     , div [] [ text ("Count: " ++ String.fromInt model.notificationClickCount) ]
                                     ]
 

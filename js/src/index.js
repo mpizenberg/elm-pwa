@@ -106,7 +106,7 @@ export function init({ ports, swUrl }) {
         if (event.data && event.data.tag === "notificationClicked") {
           pwaIn.send({
             tag: "notificationClicked",
-            url: event.data.url || "/",
+            data: event.data.data || {},
           });
         }
       });

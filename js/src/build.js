@@ -215,7 +215,8 @@ self.addEventListener("push", function (event) {
 // Notification click: focus an existing window or open a new one
 self.addEventListener("notificationclick", function (event) {
   event.notification.close();
-  var url = (event.notification.data && event.notification.data.url) || "/";
+  var data = event.notification.data || {};
+  var url = (data && data.url) || "/";
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
@@ -224,7 +225,7 @@ self.addEventListener("notificationclick", function (event) {
           var client = windowClients[i];
           if (new URL(client.url).origin === self.location.origin) {
             return client.focus().then(function (focusedClient) {
-              focusedClient.postMessage({ tag: "notificationClicked", url: url });
+              focusedClient.postMessage({ tag: "notificationClicked", data: data });
             });
           }
         }

@@ -136,7 +136,7 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 | `NotificationPermissionChanged NotificationPermission` | Notification permission state changed                             |
 | `PushSubscription Value`                               | Active push subscription (opaque JSON to forward to your backend) |
 | `PushUnsubscribed`                                     | Push subscription was removed                                     |
-| `NotificationClicked String`                           | A push notification was clicked, carrying the target URL          |
+| `NotificationClicked Value`                            | A push notification was clicked, carrying the notification's `data` payload |
 
 **Commands** sent via `pwaOut`:
 
@@ -242,7 +242,7 @@ Web Push is supported across all major browsers:
 
 3. **Send subscription to your backend** — forward the `PushSubscription` value to your server via HTTP. Your backend uses this to send push messages (via the Web Push protocol with your VAPID keys).
 
-4. **Handle notification clicks** — when the user clicks a notification, a `NotificationClicked` event arrives with the target URL. Use this to navigate within your SPA.
+4. **Handle notification clicks** — when the user clicks a notification, a `NotificationClicked` event arrives with the notification's `data` payload as an opaque `Value`. Your app can decode whatever fields your server included (e.g., `url`, `action`, custom metadata).
 
 See the push notification handling in [`examples/demo/src/Main.elm`](https://github.com/mpizenberg/elm-pwa/blob/main/examples/demo/src/Main.elm)
 for a complete implementation.
@@ -270,7 +270,9 @@ The recommended payload format wraps notification fields in the
 }
 ```
 
-The `notification.data.url` field determines which URL is sent in the `NotificationClicked` event.
+The `notification.data` object is forwarded as-is in the `NotificationClicked` event.
+The `notification.data.url` field is also used by the service worker to open the correct URL
+when no app window is available to receive the event.
 
 The flat legacy format (without the `web_push` / `notification` wrapper) is also supported
 by the service worker for backwards compatibility.
@@ -294,8 +296,8 @@ happens per-message on the browser side:
 **Caveat**: on Safari 18.4+, declarative notifications bypass the service worker entirely,
 including the `notificationclick` handler. Clicking a notification navigates directly
 to the URL in `notification.data.url` instead of sending a `NotificationClicked` event
-to Elm. Apps that need to intercept notification clicks in Elm should be aware of this
-difference on Safari.
+(with the full `data` payload) to Elm. Apps that need to intercept notification clicks
+in Elm should be aware of this difference on Safari.
 
 ## Web App Manifest
 
