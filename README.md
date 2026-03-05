@@ -175,8 +175,40 @@ generateSW({
   navigationFallback: "/",      // optional: cached URL for navigation requests (default: "/")
   networkFirstPrefixes: ["/api/"],  // optional: path prefixes to serve network-first (default: [])
   networkOnlyPrefixes: ["/auth/"],  // optional: path prefixes to serve network-only (default: [])
+  transformNotification: "...",  // optional: JS function string to transform notifications (see below)
 })
 // Returns: string (complete service worker source code)
+```
+
+#### `transformNotification`
+
+An optional JS code string that is injected at the top of the generated service worker.
+The code **must** assign a function to a variable named `SW_TRANSFORM_NOTIFICATION`.
+The function receives the parsed notification object and may return a modified version
+(sync or async). It is wrapped in a try-catch — if it throws, the original notification
+is shown unchanged.
+
+This is useful for client-side i18n: your backend sends a template key as the body,
+and the transform function resolves it to a localized string using translations
+stored in IndexedDB.
+
+```javascript
+// my-notification-transform.js
+var SW_TRANSFORM_NOTIFICATION = async function (n) {
+  // ... transform n.body, n.title, etc.
+  return n;
+};
+```
+
+```javascript
+// build-sw.mjs
+import { readFileSync } from "node:fs";
+
+generateSW({
+  cacheName: "my-app-v1",
+  precacheUrls: ["/", "/elm.js"],
+  transformNotification: readFileSync("my-notification-transform.js", "utf-8"),
+});
 ```
 
 The generated service worker uses three caching strategies, checked in this order:

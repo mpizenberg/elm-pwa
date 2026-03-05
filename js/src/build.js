@@ -11,6 +11,9 @@
  * @param {string} [config.navigationFallback="/"] - Cached URL to serve for navigation requests
  * @param {string[]} [config.networkFirstPrefixes=[]] - URL path prefixes to serve network-first (e.g., ["/api/"])
  * @param {string[]} [config.networkOnlyPrefixes=[]] - URL path prefixes to serve network-only (e.g., ["/auth/"])
+ * @param {string} [config.transformNotification] - Optional async JS function body to transform notification before display.
+ *   Receives the parsed notification object, must return the (possibly modified) object.
+ *   Wrapped in try-catch so errors fall back to default behavior.
  * @returns {string} Complete service worker source code
  *
  * @example
@@ -51,7 +54,10 @@ export function generateSW(config) {
     null,
     2,
   );
-  return "var SW_CONFIG = " + configJson + ";\n" + SW_TEMPLATE;
+  var transformHook = config.transformNotification
+    ? config.transformNotification + "\n"
+    : "";
+  return "var SW_CONFIG = " + configJson + ";\n" + transformHook + SW_TEMPLATE;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,6 +165,8 @@ self.addEventListener("message", function (event) {
 // and the flat legacy format ({ title, body, ... }).
 // On Safari 18.4+, declarative payloads are handled natively by the browser
 // and this handler is not invoked. On other browsers, it parses the same JSON.
+// If SW_TRANSFORM_NOTIFICATION is defined, it is called to transform the
+// notification object before display (e.g., for i18n). Errors fall back to default.
 self.addEventListener("push", function (event) {
   var payload = {};
   if (event.data) {
@@ -178,7 +186,30 @@ self.addEventListener("push", function (event) {
   if (n.lang) options.lang = n.lang;
   if (n.silent != null) options.silent = n.silent;
   if (n.data) options.data = n.data;
-  event.waitUntil(self.registration.showNotification(title, options));
+  if (typeof SW_TRANSFORM_NOTIFICATION === "function") {
+    event.waitUntil(
+      Promise.resolve().then(function () {
+        return SW_TRANSFORM_NOTIFICATION(n);
+      }).then(function (transformed) {
+        n = transformed || n;
+      }).catch(function () {
+        // Transform failed, keep original n
+      }).then(function () {
+        var t = n.title || "New notification";
+        var o = {};
+        if (n.body) o.body = n.body;
+        if (n.icon) o.icon = n.icon;
+        if (n.badge) o.badge = n.badge;
+        if (n.tag) o.tag = n.tag;
+        if (n.lang) o.lang = n.lang;
+        if (n.silent != null) o.silent = n.silent;
+        if (n.data) o.data = n.data;
+        return self.registration.showNotification(t, o);
+      })
+    );
+  } else {
+    event.waitUntil(self.registration.showNotification(title, options));
+  }
 });
 
 // Notification click: focus an existing window or open a new one
