@@ -71,6 +71,8 @@ type alias Model =
     , topic : String
     , notifyTitle : String
     , notifyBody : String
+    , notifyTag : String
+    , notifySilent : Bool
     , notifySent : Maybe Bool
     }
 
@@ -106,6 +108,8 @@ init flags =
       , topic = flags.topic
       , notifyTitle = ""
       , notifyBody = ""
+      , notifyTag = ""
+      , notifySilent = False
       , notifySent = Nothing
       }
     , fetchVapidKey
@@ -128,6 +132,8 @@ type Msg
     | SubscriptionUnregistered (Result Http.Error ())
     | SetNotifyTitle String
     | SetNotifyBody String
+    | SetNotifyTag String
+    | ToggleNotifySilent
     | SendTestNotification
     | DismissInstallBanner
     | NotificationSent (Result Http.Error ())
@@ -233,8 +239,14 @@ update msg model =
         SetNotifyBody body ->
             ( { model | notifyBody = body, notifySent = Nothing }, Cmd.none )
 
+        SetNotifyTag tag ->
+            ( { model | notifyTag = tag, notifySent = Nothing }, Cmd.none )
+
+        ToggleNotifySilent ->
+            ( { model | notifySilent = not model.notifySilent, notifySent = Nothing }, Cmd.none )
+
         SendTestNotification ->
-            ( model, sendTestNotification model.topic model.notifyTitle model.notifyBody )
+            ( model, sendTestNotification model.topic model.notifyTitle model.notifyBody model.notifyTag model.notifySilent )
 
         NotificationSent (Ok _) ->
             ( { model | notifySent = Just True }, Cmd.none )
@@ -272,17 +284,36 @@ registerSubscription topic subscription =
         }
 
 
-sendTestNotification : String -> String -> String -> Cmd Msg
-sendTestNotification topic title body =
+sendTestNotification : String -> String -> String -> String -> Bool -> Cmd Msg
+sendTestNotification topic title body tag silent =
+    let
+        requiredFields =
+            [ ( "title", Encode.string title )
+            , ( "body", Encode.string body )
+            , ( "icon", Encode.string "/icons/icon-192.png" )
+            ]
+
+        tagField =
+            if String.isEmpty tag then
+                Nothing
+
+            else
+                Just ( "tag", Encode.string tag )
+
+        silentField =
+            if silent then
+                Just ( "silent", Encode.bool True )
+
+            else
+                Nothing
+
+        optionalFields =
+            List.filterMap identity [ tagField, silentField ]
+    in
     Http.post
         { url = pushServerUrl ++ "/topics/" ++ topic ++ "/notify"
         , body =
-            Http.jsonBody
-                (Encode.object
-                    [ ( "title", Encode.string title )
-                    , ( "body", Encode.string body )
-                    ]
-                )
+            Http.jsonBody (Encode.object (requiredFields ++ optionalFields))
         , expect = Http.expectWhatever NotificationSent
         }
 
@@ -500,7 +531,10 @@ viewSendTestNotification model =
                 [ h3 [] [ text "Send Test Notification" ]
                 , div [ class "note-input" ]
                     [ div [] [ input [ type_ "text", placeholder "Title", value model.notifyTitle, onInput SetNotifyTitle ] [] ]
-                    , div [] [ input [ type_ "text", placeholder "Body", value model.notifyBody, onInput SetNotifyBody, onEnter SendTestNotification ] [] ]
+                    , div [] [ input [ type_ "text", placeholder "Body", value model.notifyBody, onInput SetNotifyBody ] [] ]
+                    , div [] [ input [ type_ "text", placeholder "Tag (optional)", value model.notifyTag, onInput SetNotifyTag, onEnter SendTestNotification ] [] ]
+                    , div [] [ label [] [ input [ type_ "checkbox", Html.Attributes.checked model.notifySilent, onClick ToggleNotifySilent ] [], text " Silent" ] ]
+                    , p [ style "font-size" "0.85em", style "color" "#666" ] [ text "Notifications with the same tag replace each other instead of stacking. The icon is set to /icons/icon-192.png from the web app manifest." ]
                     , div [] [ button [ onClick SendTestNotification ] [ text "Send" ] ]
                     ]
                 , case model.notifySent of

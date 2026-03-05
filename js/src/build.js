@@ -97,6 +97,9 @@ self.addEventListener("activate", function (event) {
 
 // Fetch: navigation fallback, route strategies, then cache-first default
 self.addEventListener("fetch", function (event) {
+  // Only cache GET requests; let non-GET (POST, DELETE, etc.) pass through
+  if (event.request.method !== "GET") return;
+
   // Navigation requests: serve the cached app shell (Elm handles routing)
   if (event.request.mode === "navigate") {
     event.respondWith(
@@ -172,6 +175,8 @@ self.addEventListener("push", function (event) {
   if (n.icon) options.icon = n.icon;
   if (n.badge) options.badge = n.badge;
   if (n.tag) options.tag = n.tag;
+  if (n.lang) options.lang = n.lang;
+  if (n.silent != null) options.silent = n.silent;
   if (n.data) options.data = n.data;
   event.waitUntil(self.registration.showNotification(title, options));
 });
