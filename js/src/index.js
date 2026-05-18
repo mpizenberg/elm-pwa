@@ -336,9 +336,8 @@ export function init(options) {
 
       case "requestInstall":
         if (deferredPrompt) {
-          var prompt = deferredPrompt;
-          prompt.prompt();
-          prompt.userChoice.then(function () {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then(function () {
             // Whether accepted or dismissed, Chrome won't fire
             // beforeinstallprompt again for this session. Drop it and
             // recompute the hint so the UI hides the button.
