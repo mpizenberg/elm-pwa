@@ -499,7 +499,7 @@ since Chrome 108 (mobile) and 112 (desktop).
 Chrome provides a default offline page for apps without their own.
 However, implementing a service worker is still recommended for a quality experience.
 
-### Unified `InstallHint`
+### Unified install hint
 
 All install affordances are funnelled through a single `InstallHint` value.
 The JS side computes the initial hint synchronously (`evaluateInstallHint()`),
@@ -689,7 +689,7 @@ then replay them when connectivity returns (via the `online` event or Background
 - Storage may be purged if the PWA is unused for ~7 days
 - `beforeinstallprompt` not supported; install is only via Safari's share menu
   (the package surfaces this as `InstallHint = ManualIosSafari` — see
-  [Unified `InstallHint`](#unified-installhint))
+  [Unified install hint](#unified-install-hint))
 
 ## Lighthouse PWA Audit
 
