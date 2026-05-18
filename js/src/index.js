@@ -164,7 +164,6 @@ export function init(options) {
 
   var deferredPrompt = null;
   var hasInstalledRelatedApp = false;
-  var lastHint = null;
 
   function currentHint() {
     if (deferredPrompt) return "installableNow";
@@ -183,6 +182,11 @@ export function init(options) {
     lastHint = hint;
     pwaIn.send({ tag: "installHintChanged", hint: hint });
   }
+
+  // Seed lastHint with whatever the flag already showed, so we only emit on
+  // genuine transitions. Callers pass the same options to `evaluateInstallHint`
+  // for the flag and to `init` here, so the values match.
+  var lastHint = currentHint();
 
   INSTALLED_DISPLAY_MODES.forEach(function (mode) {
     var mq = window.matchMedia("(display-mode: " + mode + ")");
@@ -224,10 +228,12 @@ export function init(options) {
       navigator.serviceWorker.register(serviceWorkerUrl).then(function (reg) {
         swRegistration = reg;
 
+        // A new SW is already waiting (e.g., user reopened the tab)
         if (reg.waiting) {
           pwaIn.send({ tag: "updateAvailable" });
         }
 
+        // Detect new service workers becoming available
         reg.addEventListener("updatefound", function () {
           var newWorker = reg.installing;
           newWorker.addEventListener("statechange", function () {
@@ -240,6 +246,7 @@ export function init(options) {
           });
         });
 
+        // Check for updates periodically (SPAs stay on the same page)
         setInterval(
           function () {
             reg.update();
@@ -247,12 +254,14 @@ export function init(options) {
           60 * 60 * 1000,
         );
 
+        // Also check when the user returns to the tab
         document.addEventListener("visibilitychange", function () {
           if (document.visibilityState === "visible") {
             reg.update();
           }
         });
 
+        // Check for existing push subscription
         if (reg.pushManager) {
           reg.pushManager.getSubscription().then(function (sub) {
             if (sub) {
@@ -265,6 +274,7 @@ export function init(options) {
         }
       });
 
+      // Reload when the new SW takes control
       var refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", function () {
         if (!refreshing) {
@@ -273,6 +283,7 @@ export function init(options) {
         }
       });
 
+      // Listen for messages from the service worker (e.g., notification clicks)
       navigator.serviceWorker.addEventListener("message", function (event) {
         if (event.data && event.data.tag === "notificationClicked") {
           pwaIn.send({
@@ -308,11 +319,6 @@ export function init(options) {
       }
     });
   }
-
-  // Seed lastHint with whatever the flag already showed, so we only emit on
-  // genuine transitions. Callers pass the same options to `evaluateInstallHint`
-  // for the flag and to `init` here, so the values match.
-  lastHint = currentHint();
 
   // --- Commands from Elm ---
 
