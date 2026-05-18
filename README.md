@@ -167,15 +167,15 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 
 **Types:**
 
-| `InstallHint`               | Description                                                                                                  |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `LaunchedAsInstalled`       | Page is running as an installed PWA window — hide all install hints                                          |
-| `InstallableNow`            | `beforeinstallprompt` fired; show your custom install button and call `Pwa.requestInstall` on click          |
-| `ManualIosSafari`           | iOS/iPadOS Safari — show "Tap Share → Add to Home Screen"                                                    |
-| `ManualMacSafari`           | macOS Safari 17+ — show "Click Share → Add to Dock"                                                          |
-| `ManualAndroidMenu`         | Android browser without `beforeinstallprompt` (e.g. Firefox) — show "Open menu → Install app"                |
+| `InstallHint`               | Description                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `LaunchedAsInstalled`       | Page is running as an installed PWA window — hide all install hints                                              |
+| `InstallableNow`            | `beforeinstallprompt` fired; show your custom install button and call `Pwa.requestInstall` on click              |
+| `ManualIosSafari`           | iOS/iPadOS Safari — show "Tap Share → Add to Home Screen"                                                        |
+| `ManualMacSafari`           | macOS Safari 17+ — show "Click Share → Add to Dock"                                                              |
+| `ManualAndroidMenu`         | Android browser without `beforeinstallprompt` (e.g. Firefox) — show "Open menu → Install app"                    |
 | `AlreadyInstalledInBrowser` | PWA is installed but viewed in a browser tab (Chromium `getInstalledRelatedApps`) — show "Open from home screen" |
-| `NoInstallHint`             | Unsupported context (iOS Chrome/Firefox/Edge, macOS Firefox, in-app browsers, …) — hide hints                |
+| `NoInstallHint`             | Unsupported context (iOS Chrome/Firefox/Edge, macOS Firefox, in-app browsers, …) — hide hints                    |
 
 `Pwa.installHintFromString : String -> InstallHint` decodes the tag strings used by the JS side (for flag wiring).
 
@@ -191,22 +191,22 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 ```javascript
 init({
   ports: { pwaIn, pwaOut }, // required: the two Elm port objects
-  swUrl: "/sw.js",          // optional: service worker URL (default: "/sw.js")
-  isInAppBrowser: undefined,// optional: (ua) => boolean override
-  requireStartUrlParam: null,// optional: name of a query param that must be present on a real PWA launch (see Install Experience)
+  swUrl: "/sw.js", // optional: service worker URL (default: "/sw.js")
+  isInAppBrowser: undefined, // optional: (ua) => boolean override
+  requireStartUrlParam: null, // optional: name of a query param that must be present on a real PWA launch (see Install Experience)
 });
 ```
 
 ### JS launch-context helpers
 
-| Helper                          | Returns | Description                                                                                                                                |
-| ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `evaluateInstallHint(options?)` | String  | Synchronous best-effort install hint tag. Use it for the initial Elm flag. Same `options` shape as `init`.                                 |
-| `isStandalone()`                | Bool    | The page is currently rendered with no browser chrome (any "installed" display mode, or `navigator.standalone`).                           |
-| `isIosSafari()`                 | Bool    | iOS/iPadOS running real Safari (not Chrome/Firefox/Edge on iOS).                                                                           |
-| `isMacSafari()`                 | Bool    | macOS Safari (17+ supports "Add to Dock").                                                                                                 |
-| `isAndroidFirefox()`            | Bool    | Android Firefox (no `beforeinstallprompt`; manual menu install).                                                                           |
-| `defaultIsInAppBrowser(ua)`     | Bool    | Default in-app browser UA detector used by `evaluateInstallHint`. Exported so consumers can compose it with their own additions.           |
+| Helper                          | Returns | Description                                                                                                                      |
+| ------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `evaluateInstallHint(options?)` | String  | Synchronous best-effort install hint tag. Use it for the initial Elm flag. Same `options` shape as `init`.                       |
+| `isStandalone()`                | Bool    | The page is currently rendered with no browser chrome (any "installed" display mode, or `navigator.standalone`).                 |
+| `isIosSafari()`                 | Bool    | iOS/iPadOS running real Safari (not Chrome/Firefox/Edge on iOS).                                                                 |
+| `isMacSafari()`                 | Bool    | macOS Safari (17+ supports "Add to Dock").                                                                                       |
+| `isAndroidFirefox()`            | Bool    | Android Firefox (no `beforeinstallprompt`; manual menu install).                                                                 |
+| `defaultIsInAppBrowser(ua)`     | Bool    | Default in-app browser UA detector used by `evaluateInstallHint`. Exported so consumers can compose it with their own additions. |
 
 `evaluateInstallHint` returns one of: `"launchedAsInstalled"`,
 `"installableNow"`, `"manualIosSafari"`, `"manualMacSafari"`,
@@ -579,9 +579,8 @@ iOS/Safari — there is no API to detect an installed PWA from Safari.
 ### Hardening `LaunchedAsInstalled` against in-app WebViews
 
 `display-mode: standalone` was meant to mean "launched as an installed PWA",
-but in practice any chrome-less WebView matches it — including Discord's
-embedded browser, some Android share-target launchers, Slack, etc. That
-leads to false positives where the user is just clicking a shared link but
+but in practice any chrome-less WebView matches it — some Android share-target launchers, Slack, etc.
+That leads to false positives where the user is just clicking a shared link but
 the page believes itself installed.
 
 The fix: have your manifest's `start_url` carry a query param the package
