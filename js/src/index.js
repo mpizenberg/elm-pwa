@@ -16,15 +16,12 @@ var INSTALLED_DISPLAY_MODES = [
  * chrome (any "installed" display mode, or Safari's `navigator.standalone`).
  */
 export function isStandalone() {
-  for (var i = 0; i < INSTALLED_DISPLAY_MODES.length; i++) {
-    if (
-      window.matchMedia("(display-mode: " + INSTALLED_DISPLAY_MODES[i] + ")")
-        .matches
-    ) {
-      return true;
-    }
-  }
-  return navigator.standalone === true;
+  return (
+    navigator.standalone === true ||
+    INSTALLED_DISPLAY_MODES.some(function (mode) {
+      return window.matchMedia("(display-mode: " + mode + ")").matches;
+    })
+  );
 }
 
 /**
