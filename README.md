@@ -621,7 +621,7 @@ Features planned for future releases:
 ## Demo
 
 A live demo is deployed to Cloudflare Pages at
-[elm-pwa-demo.pages.dev](https://elm-pwa-demo.pages.dev).
+[elm-pwa.pages.dev](https://elm-pwa.pages.dev).
 Deployments are triggered automatically by Cloudflare on each push to `main`.
 
 ## Sources
