@@ -1,77 +1,193 @@
 /**
- * Detect whether the page is launched as an installed PWA (display-mode:
- * standalone, or Safari's `navigator.standalone`).
- *
- * Launch-context value: it does not change within a session. Compute once
- * before `Elm.Main.init` and pass the result via flags.
- *
- * @returns {boolean}
+ * Display modes that mean "the page is running as an installed PWA window"
+ * — no browser chrome. Note: chrome-less in-app WebViews (Discord, Slack,
+ * some Android share-target launchers) can also match these. See
+ * `requireStartUrlParam` in `init()` for hardening.
+ */
+var INSTALLED_DISPLAY_MODES = [
+  "standalone",
+  "fullscreen",
+  "minimal-ui",
+  "window-controls-overlay",
+];
+
+/**
+ * @returns {boolean} true if the page is currently rendered with no browser
+ * chrome (any "installed" display mode, or Safari's `navigator.standalone`).
  */
 export function isStandalone() {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    navigator.standalone === true
-  );
+  for (var i = 0; i < INSTALLED_DISPLAY_MODES.length; i++) {
+    if (
+      window.matchMedia("(display-mode: " + INSTALLED_DISPLAY_MODES[i] + ")")
+        .matches
+    ) {
+      return true;
+    }
+  }
+  return navigator.standalone === true;
 }
 
 /**
- * Default in-app browser detector. Returns true for known WKWebView-based
- * apps on iOS that can't "Add to Home Screen" (the Safari share-sheet action
- * is only injected when Safari itself opens the sheet).
- *
+ * Heuristic in-app browser UA matcher. These WebViews can't install PWAs.
  * @param {string} userAgent
  * @returns {boolean}
  */
 export function defaultIsInAppBrowser(userAgent) {
-  return /FBAN|FBAV|Instagram|Line\/|Twitter|GSA\/|TikTok|Snapchat|Pinterest|LinkedIn/.test(
+  return /FBAN|FBAV|Instagram|Line\/|Twitter|GSA\/|TikTok|Snapchat|Pinterest|LinkedIn|MicroMessenger|WeChat|Discord/.test(
     userAgent,
   );
 }
 
+function detectIsIos() {
+  var ua = navigator.userAgent;
+  return (
+    /iPad|iPhone|iPod/.test(ua) ||
+    // iPadOS 13+ reports as MacIntel; disambiguate via touch points.
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
+/** @returns {boolean} iOS/iPadOS running Safari (not Chrome/Firefox/Edge on iOS). */
+export function isIosSafari() {
+  var ua = navigator.userAgent;
+  var isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+  return (
+    detectIsIos() && "standalone" in navigator && isSafari
+  );
+}
+
+/** @returns {boolean} macOS Safari 17+ context that supports "Add to Dock". */
+export function isMacSafari() {
+  var ua = navigator.userAgent;
+  var isSafari =
+    /Safari/.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS|Edg\//.test(ua);
+  var isMac = /Macintosh/.test(ua) && navigator.maxTouchPoints <= 1;
+  return isSafari && isMac;
+}
+
+/** @returns {boolean} Firefox on Android (no `beforeinstallprompt`; menu install). */
+export function isAndroidFirefox() {
+  var ua = navigator.userAgent;
+  return /Android/.test(ua) && /Firefox\//.test(ua);
+}
+
 /**
- * Detect whether to show an iOS "Add to Home Screen" hint. True iff:
- *   - running on iOS / iPadOS Safari,
- *   - not already launched as an installed PWA,
- *   - not inside a known WKWebView-based in-app browser.
+ * Read the `start_url` hardening param if present. On first observation
+ * within a tab, store a session flag and strip the param from the URL so
+ * shared links can't propagate it.
  *
- * Launch-context value: compute once before `Elm.Main.init` and pass the
- * result via flags.
+ * @param {string} name
+ * @returns {boolean}
+ */
+function consumeStartUrlParam(name) {
+  try {
+    if (sessionStorage.getItem("elm-pwa:installed-launch") === "1") return true;
+    var params = new URLSearchParams(window.location.search);
+    if (!params.has(name)) return false;
+    sessionStorage.setItem("elm-pwa:installed-launch", "1");
+    params.delete(name);
+    var newSearch = params.toString();
+    var newUrl =
+      window.location.pathname +
+      (newSearch ? "?" + newSearch : "") +
+      window.location.hash;
+    window.history.replaceState(window.history.state, "", newUrl);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Synchronously evaluate the install hint to show. Use this to compute the
+ * initial Elm flag before `Elm.Main.init`. The same options should be passed
+ * to `init({ ... })` so dynamic transitions agree with the initial value.
  *
  * @param {Object} [options]
  * @param {(ua: string) => boolean} [options.isInAppBrowser] - Override the
- *   default in-app browser detector. When omitted, `defaultIsInAppBrowser`
- *   is used.
- * @returns {boolean}
+ *   default in-app browser detector.
+ * @param {string|null} [options.requireStartUrlParam] - If set, demand a URL
+ *   query param of this name to confirm a real PWA launch. Defeats the
+ *   "Discord WebView looks standalone" false positive.
+ * @returns {string} One of: "launchedAsInstalled", "installableNow",
+ *   "manualIosSafari", "manualMacSafari", "manualAndroidMenu",
+ *   "alreadyInstalledInBrowser", "noInstallHint".
+ *
+ *   Note: `evaluateInstallHint()` can never synchronously return
+ *   `"installableNow"` (depends on `beforeinstallprompt` having fired) or
+ *   `"alreadyInstalledInBrowser"` (depends on the async
+ *   `getInstalledRelatedApps`). Those arrive via `installHintChanged` events.
  */
-export function iosInstallHint(options) {
-  var isInAppBrowserFn =
-    (options && options.isInAppBrowser) || defaultIsInAppBrowser;
+export function evaluateInstallHint(options) {
+  options = options || {};
+  var isInAppBrowserFn = options.isInAppBrowser || defaultIsInAppBrowser;
   var ua = navigator.userAgent;
-  var isIOS =
-    /iPad|iPhone|iPod/.test(ua) ||
-    // iPadOS 13+ reports as MacIntel; disambiguate via touch points.
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  return (
-    isIOS &&
-    "standalone" in navigator &&
-    !isStandalone() &&
-    !isInAppBrowserFn(ua)
-  );
+
+  if (isStandalone()) {
+    if (!options.requireStartUrlParam) return "launchedAsInstalled";
+    if (consumeStartUrlParam(options.requireStartUrlParam))
+      return "launchedAsInstalled";
+    // chrome-less webview without the param → fall through
+  }
+
+  if (isInAppBrowserFn(ua)) return "noInstallHint";
+  if (isIosSafari()) return "manualIosSafari";
+  if (isMacSafari()) return "manualMacSafari";
+  if (isAndroidFirefox()) return "manualAndroidMenu";
+  return "noInstallHint";
 }
 
 /**
  * Initialize PWA event wiring between browser APIs and Elm ports.
  *
  * @param {Object} options
- * @param {Object} options.ports - The two Elm port objects
- * @param {Object} options.ports.pwaIn - Incoming port (JS -> Elm), must have `.send(value)`
- * @param {Object} options.ports.pwaOut - Outgoing port (Elm -> JS), must have `.subscribe(fn)`
- * @param {string} [options.swUrl="/sw.js"] - URL of the service worker file
+ * @param {Object} options.ports
+ * @param {Object} options.ports.pwaIn
+ * @param {Object} options.ports.pwaOut
+ * @param {string} [options.swUrl="/sw.js"]
+ * @param {(ua: string) => boolean} [options.isInAppBrowser]
+ * @param {string|null} [options.requireStartUrlParam]
  */
-export function init({ ports, swUrl }) {
+export function init(options) {
+  var ports = options.ports;
   var pwaIn = ports.pwaIn;
   var pwaOut = ports.pwaOut;
-  var serviceWorkerUrl = swUrl || "/sw.js";
+  var serviceWorkerUrl = options.swUrl || "/sw.js";
+  var isInAppBrowser = options.isInAppBrowser;
+  var requireStartUrlParam = options.requireStartUrlParam || null;
+
+  // --- Install-hint state machine ---
+
+  var deferredPrompt = null;
+  var hasInstalledRelatedApp = false;
+  var lastHint = null;
+
+  function currentHint() {
+    if (deferredPrompt) return "installableNow";
+    var base = evaluateInstallHint({
+      isInAppBrowser: isInAppBrowser,
+      requireStartUrlParam: requireStartUrlParam,
+    });
+    if (base === "launchedAsInstalled") return base;
+    if (hasInstalledRelatedApp) return "alreadyInstalledInBrowser";
+    return base;
+  }
+
+  function emitHint() {
+    var hint = currentHint();
+    if (hint === lastHint) return;
+    lastHint = hint;
+    pwaIn.send({ tag: "installHintChanged", hint: hint });
+  }
+
+  INSTALLED_DISPLAY_MODES.forEach(function (mode) {
+    var mq = window.matchMedia("(display-mode: " + mode + ")");
+    if (mq.addEventListener) {
+      mq.addEventListener("change", emitHint);
+    } else if (mq.addListener) {
+      mq.addListener(emitHint);
+    }
+  });
 
   // --- Online/Offline Detection ---
 
@@ -83,20 +199,17 @@ export function init({ ports, swUrl }) {
 
   // --- Notification Permission (initial state) ---
 
-  function sendNotificationPermission() {
-    if (!("Notification" in window)) {
-      pwaIn.send({
-        tag: "notificationPermissionChanged",
-        permission: "unsupported",
-      });
-    } else {
-      pwaIn.send({
-        tag: "notificationPermissionChanged",
-        permission: Notification.permission,
-      });
-    }
+  if (!("Notification" in window)) {
+    pwaIn.send({
+      tag: "notificationPermissionChanged",
+      permission: "unsupported",
+    });
+  } else {
+    pwaIn.send({
+      tag: "notificationPermissionChanged",
+      permission: Notification.permission,
+    });
   }
-  sendNotificationPermission();
 
   // --- Service Worker Registration & Update Flow ---
 
@@ -107,12 +220,10 @@ export function init({ ports, swUrl }) {
       navigator.serviceWorker.register(serviceWorkerUrl).then(function (reg) {
         swRegistration = reg;
 
-        // A new SW is already waiting (e.g., user reopened the tab)
         if (reg.waiting) {
           pwaIn.send({ tag: "updateAvailable" });
         }
 
-        // Detect new service workers becoming available
         reg.addEventListener("updatefound", function () {
           var newWorker = reg.installing;
           newWorker.addEventListener("statechange", function () {
@@ -125,7 +236,6 @@ export function init({ ports, swUrl }) {
           });
         });
 
-        // Check for updates periodically (SPAs stay on the same page)
         setInterval(
           function () {
             reg.update();
@@ -133,14 +243,12 @@ export function init({ ports, swUrl }) {
           60 * 60 * 1000,
         );
 
-        // Also check when the user returns to the tab
         document.addEventListener("visibilitychange", function () {
           if (document.visibilityState === "visible") {
             reg.update();
           }
         });
 
-        // Check for existing push subscription
         if (reg.pushManager) {
           reg.pushManager.getSubscription().then(function (sub) {
             if (sub) {
@@ -153,7 +261,6 @@ export function init({ ports, swUrl }) {
         }
       });
 
-      // Reload when the new SW takes control
       var refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", function () {
         if (!refreshing) {
@@ -162,7 +269,6 @@ export function init({ ports, swUrl }) {
         }
       });
 
-      // Listen for messages from the service worker (e.g., notification clicks)
       navigator.serviceWorker.addEventListener("message", function (event) {
         if (event.data && event.data.tag === "notificationClicked") {
           pwaIn.send({
@@ -176,26 +282,33 @@ export function init({ ports, swUrl }) {
 
   // --- Install Prompt ---
 
-  var deferredPrompt;
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault();
     deferredPrompt = e;
-    pwaIn.send({ tag: "installAvailable" });
+    emitHint();
   });
 
   window.addEventListener("appinstalled", function () {
-    pwaIn.send({ tag: "installed" });
+    deferredPrompt = null;
+    // display-mode change usually follows; emit now too for snappy UI.
+    emitHint();
   });
 
   // --- Detect installed PWA opened in the browser ---
 
   if (!isStandalone() && "getInstalledRelatedApps" in navigator) {
     navigator.getInstalledRelatedApps().then(function (apps) {
-      if (apps.length > 0) {
-        pwaIn.send({ tag: "installedInBrowser" });
+      if (apps && apps.length > 0) {
+        hasInstalledRelatedApp = true;
+        emitHint();
       }
     });
   }
+
+  // Seed lastHint with whatever the flag already showed, so we only emit on
+  // genuine transitions. Callers pass the same options to `evaluateInstallHint`
+  // for the flag and to `init` here, so the values match.
+  lastHint = currentHint();
 
   // --- Commands from Elm ---
 
@@ -213,9 +326,14 @@ export function init({ ports, swUrl }) {
 
       case "requestInstall":
         if (deferredPrompt) {
-          deferredPrompt.prompt();
-          deferredPrompt.userChoice.then(function () {
+          var prompt = deferredPrompt;
+          prompt.prompt();
+          prompt.userChoice.then(function () {
+            // Whether accepted or dismissed, Chrome won't fire
+            // beforeinstallprompt again for this session. Drop it and
+            // recompute the hint so the UI hides the button.
             deferredPrompt = null;
+            emitHint();
           });
         }
         break;

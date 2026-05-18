@@ -1,7 +1,7 @@
 {
   "name": "Elm PWA Example",
   "short_name": "ElmPWA",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#60B5CC",

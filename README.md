@@ -45,14 +45,22 @@ that handles all events.
 ### 3. Initialize the JS side
 
 ```javascript
-import { init, isStandalone, iosInstallHint } from "elm-pwa";
+import { init, evaluateInstallHint } from "elm-pwa";
+
+// Pass the same options to both the flag and `init` so the initial render
+// and runtime `installHintChanged` events agree.
+var installHintOptions = {
+  // Optional hardening against chrome-less in-app WebViews (Discord, ...)
+  // that can fake `display-mode: standalone`. Requires the manifest's
+  // `start_url` to carry the matching query param, e.g. "/?source=pwa".
+  requireStartUrlParam: "source",
+};
 
 var app = Elm.Main.init({
   node: document.getElementById("app"),
   flags: {
     isOnline: navigator.onLine,
-    isStandalone: isStandalone(),
-    iosInstallHint: iosInstallHint(),
+    installHint: evaluateInstallHint(installHintOptions),
   },
 });
 
@@ -61,14 +69,15 @@ init({
     pwaIn: app.ports.pwaIn,
     pwaOut: app.ports.pwaOut,
   },
+  ...installHintOptions,
 });
 ```
 
-`isStandalone()` and `iosInstallHint()` are launch-context booleans (they
-cannot change within a session), so they're passed through Elm flags rather
-than ports. This way the first render already knows whether to show the
-"Installed" badge or the iOS Share → Add to Home Screen hint, with no flash.
-See [Install Experience](#install-experience) for details.
+`evaluateInstallHint()` returns the synchronous best-effort answer for the
+initial render. The `init()` function then emits `installHintChanged`
+events whenever the underlying signals change (`beforeinstallprompt`,
+`appinstalled`, `display-mode`, `getInstalledRelatedApps`). See
+[Install Experience](#install-experience) for details.
 
 ### 4. Generate the service worker
 
@@ -136,17 +145,15 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 
 **Events** received via `pwaIn`:
 
-| Event                                                  | Description                                                                   |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `ConnectionChanged Bool`                               | Device went online (`True`) or offline (`False`)                              |
-| `UpdateAvailable`                                      | A new service worker is installed and waiting                                 |
-| `InstallAvailable`                                     | The browser's install prompt can be triggered                                 |
-| `Installed`                                            | The app was installed                                                         |
-| `InstalledInBrowser`                                   | PWA is installed but user is browsing the site in the browser (Chromium only) |
-| `NotificationPermissionChanged NotificationPermission` | Notification permission state changed                                         |
-| `PushSubscription Value`                               | Active push subscription (opaque JSON to forward to your backend)             |
-| `PushUnsubscribed`                                     | Push subscription was removed                                                 |
-| `NotificationClicked Value`                            | A push notification was clicked, carrying the notification's `data` payload   |
+| Event                                                  | Description                                                                                  |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `ConnectionChanged Bool`                               | Device went online (`True`) or offline (`False`)                                             |
+| `UpdateAvailable`                                      | A new service worker is installed and waiting                                                |
+| `InstallHintChanged InstallHint`                       | The recommended install affordance for the current context changed (see `InstallHint` below) |
+| `NotificationPermissionChanged NotificationPermission` | Notification permission state changed                                                        |
+| `PushSubscription Value`                               | Active push subscription (opaque JSON to forward to your backend)                            |
+| `PushUnsubscribed`                                     | Push subscription was removed                                                                |
+| `NotificationClicked Value`                            | A push notification was clicked, carrying the notification's `data` payload                  |
 
 **Commands** sent via `pwaOut`:
 
@@ -160,6 +167,18 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 
 **Types:**
 
+| `InstallHint`               | Description                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `LaunchedAsInstalled`       | Page is running as an installed PWA window — hide all install hints                                          |
+| `InstallableNow`            | `beforeinstallprompt` fired; show your custom install button and call `Pwa.requestInstall` on click          |
+| `ManualIosSafari`           | iOS/iPadOS Safari — show "Tap Share → Add to Home Screen"                                                    |
+| `ManualMacSafari`           | macOS Safari 17+ — show "Click Share → Add to Dock"                                                          |
+| `ManualAndroidMenu`         | Android browser without `beforeinstallprompt` (e.g. Firefox) — show "Open menu → Install app"                |
+| `AlreadyInstalledInBrowser` | PWA is installed but viewed in a browser tab (Chromium `getInstalledRelatedApps`) — show "Open from home screen" |
+| `NoInstallHint`             | Unsupported context (iOS Chrome/Firefox/Edge, macOS Firefox, in-app browsers, …) — hide hints                |
+
+`Pwa.installHintFromString : String -> InstallHint` decodes the tag strings used by the JS side (for flag wiring).
+
 | `NotificationPermission` | Description                                                      |
 | ------------------------ | ---------------------------------------------------------------- |
 | `Granted`                | Notifications are allowed                                        |
@@ -172,29 +191,34 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 ```javascript
 init({
   ports: { pwaIn, pwaOut }, // required: the two Elm port objects
-  swUrl: "/sw.js", // optional: service worker URL (default: "/sw.js")
+  swUrl: "/sw.js",          // optional: service worker URL (default: "/sw.js")
+  isInAppBrowser: undefined,// optional: (ua) => boolean override
+  requireStartUrlParam: null,// optional: name of a query param that must be present on a real PWA launch (see Install Experience)
 });
 ```
 
 ### JS launch-context helpers
 
-Synchronous helpers for values that are fixed at page load. Compute them
-before `Elm.Main.init` and pass the booleans through flags.
+| Helper                          | Returns | Description                                                                                                                                |
+| ------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `evaluateInstallHint(options?)` | String  | Synchronous best-effort install hint tag. Use it for the initial Elm flag. Same `options` shape as `init`.                                 |
+| `isStandalone()`                | Bool    | The page is currently rendered with no browser chrome (any "installed" display mode, or `navigator.standalone`).                           |
+| `isIosSafari()`                 | Bool    | iOS/iPadOS running real Safari (not Chrome/Firefox/Edge on iOS).                                                                           |
+| `isMacSafari()`                 | Bool    | macOS Safari (17+ supports "Add to Dock").                                                                                                 |
+| `isAndroidFirefox()`            | Bool    | Android Firefox (no `beforeinstallprompt`; manual menu install).                                                                           |
+| `defaultIsInAppBrowser(ua)`     | Bool    | Default in-app browser UA detector used by `evaluateInstallHint`. Exported so consumers can compose it with their own additions.           |
 
-| Helper                      | Returns | Description                                                                                                                                                  |
-| --------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `isStandalone()`            | Bool    | Page is launched as an installed PWA (`display-mode: standalone` or Safari's `navigator.standalone`).                                                        |
-| `iosInstallHint(options?)`  | Bool    | Show an iOS "Add to Home Screen" hint: running on iOS/iPadOS Safari, not already standalone, and not inside a known in-app browser (Facebook, Instagram, …). |
-| `defaultIsInAppBrowser(ua)` | Bool    | The default in-app browser UA detector used by `iosInstallHint`. Exported so consumers can compose it with their own additions.                              |
-
-`iosInstallHint` accepts an optional `{ isInAppBrowser: (ua) => boolean }`
-override for the in-app browser detector:
+`evaluateInstallHint` returns one of: `"launchedAsInstalled"`,
+`"installableNow"`, `"manualIosSafari"`, `"manualMacSafari"`,
+`"manualAndroidMenu"`, `"alreadyInstalledInBrowser"`, `"noInstallHint"`.
+Decode it on the Elm side with `Pwa.installHintFromString`.
 
 ```javascript
-import { iosInstallHint, defaultIsInAppBrowser } from "elm-pwa";
+import { evaluateInstallHint, defaultIsInAppBrowser } from "elm-pwa";
 
-iosInstallHint({
+evaluateInstallHint({
   isInAppBrowser: (ua) => defaultIsInAppBrowser(ua) || /MyCorpApp/i.test(ua),
+  requireStartUrlParam: "source",
 });
 ```
 
@@ -475,61 +499,69 @@ since Chrome 108 (mobile) and 112 (desktop).
 Chrome provides a default offline page for apps without their own.
 However, implementing a service worker is still recommended for a quality experience.
 
-### Custom install button
+### Unified `InstallHint`
 
-`beforeinstallprompt` lets you capture the browser's install prompt and defer it
-to show your own install UI. The `init()` function captures this event and sends
-an `InstallAvailable` event to Elm. When the user clicks your install button,
-call `Pwa.requestInstall pwaOut` to show the browser's native install dialog.
-
-Browser support: Chromium only. Safari uses "Add to Home Screen" from the
-share menu — see [iOS install hint](#ios-install-hint) below.
-Firefox 143+ supports PWA install on Windows.
-
-### iOS install hint
-
-iOS Safari never fires `beforeinstallprompt`, and there is no programmatic
-API to trigger "Add to Home Screen" — the user must tap Safari's Share
-button and pick the action themselves. `navigator.share()` does **not** help:
-that action is only injected into the share sheet when Safari itself opens it
-from its own toolbar.
-
-The `iosInstallHint()` helper returns `true` exactly when a static hint is
-worth showing: iOS/iPadOS Safari, not already standalone, and not inside a
-WKWebView-based in-app browser (Facebook, Instagram, Gmail, …) where the
-"Add to Home Screen" action isn't available either. Pass the boolean as a
-flag and gate a banner on it in your view:
+All install affordances are funnelled through a single `InstallHint` value.
+The JS side computes the initial hint synchronously (`evaluateInstallHint()`),
+passes it as a flag, then emits `InstallHintChanged` whenever the underlying
+signals change (`beforeinstallprompt`, `appinstalled`, `display-mode`,
+`getInstalledRelatedApps`, prompt dismissal).
 
 ```elm
-if model.iosInstallHint then
-    div [ class "banner" ]
-        [ text "Install: tap Share, then Add to Home Screen" ]
-else
-    text ""
+viewInstallButton : Pwa.InstallHint -> Html Msg
+viewInstallButton hint =
+    case hint of
+        Pwa.LaunchedAsInstalled ->
+            text ""  -- nothing to do, the user is in the installed app
+
+        Pwa.InstallableNow ->
+            button [ onClick RequestInstall ] [ text "Install App" ]
+
+        Pwa.ManualIosSafari ->
+            text "Tap Share → Add to Home Screen"
+
+        Pwa.ManualMacSafari ->
+            text "Click Share → Add to Dock"
+
+        Pwa.ManualAndroidMenu ->
+            text "Open the browser menu → Install app"
+
+        Pwa.AlreadyInstalledInBrowser ->
+            text "App is installed — open it from your home screen"
+
+        Pwa.NoInstallHint ->
+            text ""
 ```
 
-iOS Chrome/Firefox/Edge are filtered out: they all run on WebKit but cannot
-add to the home screen. If your app is also embedded in a corporate or
-partner mobile webview, extend the in-app browser list (see
-[JS launch-context helpers](#js-launch-context-helpers)).
+### Custom install button (Chromium)
 
-### Post-install message
+`InstallableNow` means `beforeinstallprompt` fired and the deferred prompt is
+ready. Show your custom install button and call `Pwa.requestInstall pwaOut`
+on click to surface the browser's native dialog. After the user's choice
+(accept or dismiss), the hint automatically transitions back to whatever the
+current context dictates, so the button hides itself.
 
-When the user completes installation, the browser fires an `appinstalled` event.
-The `init()` function forwards this as an `Installed` event to Elm. Use this to
-show a friendly message suggesting the user close the browser tab and open the
-app from their home screen, since the browser tab remains open after installation.
+Browser support: Chromium only. Safari uses manual share-menu install
+(`ManualIosSafari` / `ManualMacSafari`). Firefox 143+ on Windows supports
+`beforeinstallprompt`; Firefox on Android falls through to `ManualAndroidMenu`.
+
+### iOS / macOS Safari install hints
+
+Safari never fires `beforeinstallprompt` and offers no programmatic install API.
+On iOS/iPadOS the user must tap **Share → Add to Home Screen**; on macOS 17+
+(Sonoma) it's **Share → Add to Dock**. The package detects each case
+(`ManualIosSafari`, `ManualMacSafari`) and filters out iOS Chrome/Firefox/Edge
+plus known in-app browsers (Facebook, Instagram, Discord, …) where the action
+isn't available. Extend the in-app browser list via `isInAppBrowser` in
+`init`/`evaluateInstallHint` if you ship inside a partner WebView.
 
 ### Detecting an installed PWA from the browser
 
 When a user has already installed your PWA but opens the website in a regular
-browser tab, Chrome won't fire `beforeinstallprompt` (because the app is already
-installed), and the app isn't running in standalone mode — so there's no visible
-indication that the app is installed.
-
-The `init()` function uses `navigator.getInstalledRelatedApps()` to detect this
-situation and sends an `InstalledInBrowser` event to Elm. Use this to show a hint
-like "App is installed — open it from your home screen".
+browser tab, Chrome won't fire `beforeinstallprompt` and the page isn't in
+standalone mode. The package uses `navigator.getInstalledRelatedApps()` to
+detect this and emits `InstallHintChanged AlreadyInstalledInBrowser` so you
+can show "App is installed — open it from your home screen".
 
 This requires a `related_applications` entry in your manifest pointing to itself:
 
@@ -543,6 +575,52 @@ This requires a `related_applications` entry in your manifest pointing to itself
 
 Browser support: Chromium only (Android, ChromeOS, Windows). Not available on
 iOS/Safari — there is no API to detect an installed PWA from Safari.
+
+### Hardening `LaunchedAsInstalled` against in-app WebViews
+
+`display-mode: standalone` was meant to mean "launched as an installed PWA",
+but in practice any chrome-less WebView matches it — including Discord's
+embedded browser, some Android share-target launchers, Slack, etc. That
+leads to false positives where the user is just clicking a shared link but
+the page believes itself installed.
+
+The fix: have your manifest's `start_url` carry a query param the package
+can check.
+
+1. In `manifest.webmanifest`:
+
+   ```json
+   { "start_url": "/?source=pwa" }
+   ```
+
+2. In your bootstrap JS:
+
+   ```javascript
+   var installHintOptions = { requireStartUrlParam: "source" };
+   var app = Elm.Main.init({
+     flags: {
+       installHint: evaluateInstallHint(installHintOptions),
+       // ...
+     },
+   });
+   init({ ports: { ... }, ...installHintOptions });
+   ```
+
+When `requireStartUrlParam` is set, `LaunchedAsInstalled` is only reported if
+both the display-mode looks installed **and** the URL carries the matching
+query param. On first observation the param is stored in `sessionStorage` and
+stripped from the visible URL via `history.replaceState`, so shared links
+can't leak it.
+
+Caveats:
+
+- iOS Safari < 16.4 ignores manifest `start_url` for Add to Home Screen; the
+  param won't be present on home-screen launches. Modern iOS (16.4+, March
+  2023) respects it.
+- Strip-from-URL keeps the user's other query params intact, but a service
+  worker that uses `Response.redirect` on the initial navigation could drop
+  the param before the page reads it — verify your SW preserves
+  `request.url` for navigation requests.
 
 ## Elm/JS Integration Patterns
 
@@ -606,8 +684,8 @@ then replay them when connectivity returns (via the `online` event or Background
 - No Background Sync or Periodic Background Sync
 - Storage may be purged if the PWA is unused for ~7 days
 - `beforeinstallprompt` not supported; install is only via Safari's share menu
-  (use [`iosInstallHint()`](#js-launch-context-helpers) to detect when to
-  surface a Share → Add to Home Screen hint)
+  (the package surfaces this as `InstallHint = ManualIosSafari` — see
+  [Unified `InstallHint`](#unified-installhint))
 
 ## Lighthouse PWA Audit
 

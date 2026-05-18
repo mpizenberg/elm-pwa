@@ -1,5 +1,6 @@
 module Pwa exposing
     ( Event(..), decodeEvent
+    , InstallHint(..), installHintFromString
     , NotificationPermission(..)
     , acceptUpdate, requestInstall
     , requestNotificationPermission, subscribePush, unsubscribePush
@@ -34,7 +35,12 @@ Then wires them as follows:
 @docs Event, decodeEvent
 
 
-# Types
+# Install hint
+
+@docs InstallHint, installHintFromString
+
+
+# Notifications
 
 @docs NotificationPermission
 
@@ -55,9 +61,13 @@ import Json.Encode as Encode
   - `ConnectionChanged True` — device went online
   - `ConnectionChanged False` — device went offline
   - `UpdateAvailable` — a new service worker is installed and waiting to activate
-  - `InstallAvailable` — the browser's install prompt can be triggered (Chromium only)
-  - `Installed` — the app was installed to the home screen / desktop
-  - `InstalledInBrowser` — the PWA is installed but the user is viewing the site in the browser (Chromium only)
+  - `InstallHintChanged` — the recommended install UI for the current context
+    changed. Carries an `InstallHint` describing what (if anything) to show.
+    This event fires when `beforeinstallprompt` arrives, when the app is
+    installed, when the display-mode changes, or when the async
+    `getInstalledRelatedApps` resolves. The initial value should be computed
+    synchronously in JS via `evaluateInstallHint()` and passed through flags
+    so the first render is correct.
   - `NotificationPermissionChanged` — the notification permission state changed
   - `PushSubscription` — an active push subscription (opaque JSON to forward to your backend)
   - `PushSubscriptionError` — push subscription failed, carrying an error message
@@ -68,23 +78,87 @@ import Json.Encode as Encode
     handled natively by the browser (navigating directly to the URL) and this event
     will not fire.
 
-Note: launch-context values like "is this page standalone" and "should we show
-the iOS install hint" are exposed as synchronous JS helpers (`isStandalone()`,
-`iosInstallHint()`) rather than events. Compute them in your bootstrap JS and
-pass the booleans through Elm flags so they're available on the first render.
-
 -}
 type Event
     = ConnectionChanged Bool
     | UpdateAvailable
-    | InstallAvailable
-    | Installed
-    | InstalledInBrowser
+    | InstallHintChanged InstallHint
     | NotificationPermissionChanged NotificationPermission
     | PushSubscription Encode.Value
     | PushSubscriptionError String
     | PushUnsubscribed
     | NotificationClicked Decode.Value
+
+
+{-| The recommended install affordance for the current browser/OS context.
+
+  - `LaunchedAsInstalled` — the page is running as an installed PWA window
+    (any "installed" display mode, or Safari's `navigator.standalone`).
+    Hide all install hints. Optionally hardened against chrome-less in-app
+    WebViews via the `requireStartUrlParam` option in JS `init`.
+  - `InstallableNow` — `beforeinstallprompt` fired and the deferred prompt
+    is ready. Show your custom install button; calling `requestInstall`
+    will trigger the browser's native dialog.
+  - `ManualIosSafari` — iOS/iPadOS Safari, no programmatic prompt. Tell the
+    user to tap **Share** → **Add to Home Screen**.
+  - `ManualMacSafari` — macOS Safari 17+ (Sonoma). Tell the user to click
+    **Share** → **Add to Dock**.
+  - `ManualAndroidMenu` — Android Firefox or similar Chromium browser that
+    didn't fire `beforeinstallprompt`. Tell the user to open the browser
+    menu and pick **Install app** / **Add to Home screen**.
+  - `AlreadyInstalledInBrowser` — `getInstalledRelatedApps` reports the PWA
+    is installed but the user is viewing the site in the browser. Tell the
+    user to open it from their home screen. Chromium only.
+  - `NoInstallHint` — this context can't install or doesn't need a hint
+    (iOS Chrome/Firefox/Edge, macOS Firefox, known in-app browsers, etc.).
+    Hide install hints.
+
+-}
+type InstallHint
+    = LaunchedAsInstalled
+    | InstallableNow
+    | ManualIosSafari
+    | ManualMacSafari
+    | ManualAndroidMenu
+    | AlreadyInstalledInBrowser
+    | NoInstallHint
+
+
+{-| Decode an install hint tag string (as emitted by the JS side via
+`evaluateInstallHint()` or `installHintChanged` events). Unknown values
+default to `NoInstallHint`, which is the safest "hide everything" choice.
+
+    init flags =
+        let
+            initialHint =
+                Pwa.installHintFromString flags.installHint
+        in
+        ...
+
+-}
+installHintFromString : String -> InstallHint
+installHintFromString tag =
+    case tag of
+        "launchedAsInstalled" ->
+            LaunchedAsInstalled
+
+        "installableNow" ->
+            InstallableNow
+
+        "manualIosSafari" ->
+            ManualIosSafari
+
+        "manualMacSafari" ->
+            ManualMacSafari
+
+        "manualAndroidMenu" ->
+            ManualAndroidMenu
+
+        "alreadyInstalledInBrowser" ->
+            AlreadyInstalledInBrowser
+
+        _ ->
+            NoInstallHint
 
 
 {-| The state of the browser's notification permission.
@@ -126,14 +200,9 @@ eventDecoder =
                     "updateAvailable" ->
                         Decode.succeed UpdateAvailable
 
-                    "installAvailable" ->
-                        Decode.succeed InstallAvailable
-
-                    "installed" ->
-                        Decode.succeed Installed
-
-                    "installedInBrowser" ->
-                        Decode.succeed InstalledInBrowser
+                    "installHintChanged" ->
+                        Decode.field "hint" Decode.string
+                            |> Decode.map (installHintFromString >> InstallHintChanged)
 
                     "notificationPermissionChanged" ->
                         Decode.field "permission" notificationPermissionDecoder
@@ -195,7 +264,8 @@ acceptUpdate pwaOut =
     pwaOut (Encode.object [ ( "tag", Encode.string "acceptUpdate" ) ])
 
 
-{-| Trigger the browser's install prompt (Chromium only).
+{-| Trigger the browser's install prompt. Only effective when the current
+`InstallHint` is `InstallableNow` (i.e. `beforeinstallprompt` has fired).
 
     update msg model =
         case msg of

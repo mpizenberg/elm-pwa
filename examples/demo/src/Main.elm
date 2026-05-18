@@ -25,7 +25,11 @@ pushServerUrl =
 -- MAIN
 
 
-main : Program { isOnline : Bool, topic : String, isStandalone : Bool, iosInstallHint : Bool } Model Msg
+type alias Flags =
+    { isOnline : Bool, topic : String, installHint : String }
+
+
+main : Program Flags Model Msg
 main =
     Browser.element
         { init = init
@@ -51,11 +55,8 @@ subscriptions _ =
 type alias Model =
     { isOnline : Bool
     , updateAvailable : Bool
-    , installAvailable : Bool
-    , isStandalone : Bool
+    , installHint : Pwa.InstallHint
     , justInstalled : Bool
-    , installedInBrowser : Bool
-    , showIosHint : Bool
     , notificationPermission : Maybe Pwa.NotificationPermission
     , pushSubscription : Maybe Encode.Value
     , lastNotificationData : Maybe Decode.Value
@@ -71,15 +72,12 @@ type alias Model =
     }
 
 
-init : { isOnline : Bool, topic : String, isStandalone : Bool, iosInstallHint : Bool } -> ( Model, Cmd Msg )
+init : Flags -> ( Model, Cmd Msg )
 init flags =
     ( { isOnline = flags.isOnline
       , updateAvailable = False
-      , installAvailable = False
-      , isStandalone = flags.isStandalone
+      , installHint = Pwa.installHintFromString flags.installHint
       , justInstalled = False
-      , installedInBrowser = False
-      , showIosHint = flags.iosInstallHint
       , notificationPermission = Nothing
       , pushSubscription = Nothing
       , lastNotificationData = Nothing
@@ -131,14 +129,17 @@ update msg model =
                 Pwa.UpdateAvailable ->
                     ( { model | updateAvailable = True }, Cmd.none )
 
-                Pwa.InstallAvailable ->
-                    ( { model | installAvailable = True }, Cmd.none )
-
-                Pwa.Installed ->
-                    ( { model | installAvailable = False, isStandalone = True, justInstalled = True }, Cmd.none )
-
-                Pwa.InstalledInBrowser ->
-                    ( { model | installedInBrowser = True }, Cmd.none )
+                Pwa.InstallHintChanged newHint ->
+                    let
+                        justInstalled =
+                            newHint == Pwa.LaunchedAsInstalled && model.installHint /= Pwa.LaunchedAsInstalled
+                    in
+                    ( { model
+                        | installHint = newHint
+                        , justInstalled = model.justInstalled || justInstalled
+                      }
+                    , Cmd.none
+                    )
 
                 Pwa.NotificationPermissionChanged permission ->
                     ( { model | notificationPermission = Just permission }, Cmd.none )
@@ -363,7 +364,7 @@ viewHeader model =
         [ h1 [] [ text "Elm PWA" ]
         , div [ class "status-bar" ]
             [ viewConnectionStatus model.isOnline
-            , viewInstallButton model
+            , viewInstallButton model.installHint
             ]
         ]
 
@@ -390,27 +391,39 @@ viewConnectionStatus isOnline =
         ]
 
 
-viewInstallButton : Model -> Html Msg
-viewInstallButton model =
-    if model.isStandalone then
-        span [ class "status-badge installed" ] [ text "Installed" ]
+viewInstallButton : Pwa.InstallHint -> Html Msg
+viewInstallButton hint =
+    case hint of
+        Pwa.LaunchedAsInstalled ->
+            span [ class "status-badge installed" ] [ text "Installed" ]
 
-    else if model.installAvailable then
-        button [ class "install-btn", onClick RequestInstall ] [ text "Install App" ]
+        Pwa.InstallableNow ->
+            button [ class "install-btn", onClick RequestInstall ] [ text "Install App" ]
 
-    else if model.installedInBrowser then
-        span [ class "install-hint" ]
-            [ text "App is installed — open it from your home screen" ]
+        Pwa.AlreadyInstalledInBrowser ->
+            span [ class "install-hint" ]
+                [ text "App is installed — open it from your home screen" ]
 
-    else if model.showIosHint then
-        span [ class "install-hint" ]
-            [ text "To install: tap "
-            , span [ class "share-icon" ] [ text "Share" ]
-            , text " then \"Add to Home Screen\""
-            ]
+        Pwa.ManualIosSafari ->
+            span [ class "install-hint" ]
+                [ text "To install: tap "
+                , span [ class "share-icon" ] [ text "Share" ]
+                , text " then \"Add to Home Screen\""
+                ]
 
-    else
-        text ""
+        Pwa.ManualMacSafari ->
+            span [ class "install-hint" ]
+                [ text "To install: click "
+                , span [ class "share-icon" ] [ text "Share" ]
+                , text " then \"Add to Dock\""
+                ]
+
+        Pwa.ManualAndroidMenu ->
+            span [ class "install-hint" ]
+                [ text "To install: open the browser menu and tap \"Install app\"" ]
+
+        Pwa.NoInstallHint ->
+            text ""
 
 
 viewMain : Model -> Html Msg
@@ -439,7 +452,7 @@ viewPushNotifications : Model -> Html Msg
 viewPushNotifications model =
     section []
         [ h2 [] [ text "Push Notifications" ]
-        , if model.showIosHint then
+        , if model.installHint == Pwa.ManualIosSafari then
             p []
                 [ text "Push notifications on iOS require the app to be installed. Tap "
                 , span [ class "share-icon" ] [ text "Share" ]
@@ -575,20 +588,30 @@ viewFooter model =
         , a [ href "https://github.com/mpizenberg/elm-pwa" ] [ text "README" ]
         , text " for the full guide."
         , p [ style "font-size" "0.85em", style "color" "#666", style "margin-top" "8px" ]
-            [ text
-                ("debug: isStandalone="
-                    ++ boolToString model.isStandalone
-                    ++ ", showIosHint="
-                    ++ boolToString model.showIosHint
-                )
-            ]
+            [ text ("debug: installHint=" ++ installHintToString model.installHint) ]
         ]
 
 
-boolToString : Bool -> String
-boolToString b =
-    if b then
-        "true"
+installHintToString : Pwa.InstallHint -> String
+installHintToString hint =
+    case hint of
+        Pwa.LaunchedAsInstalled ->
+            "LaunchedAsInstalled"
 
-    else
-        "false"
+        Pwa.InstallableNow ->
+            "InstallableNow"
+
+        Pwa.ManualIosSafari ->
+            "ManualIosSafari"
+
+        Pwa.ManualMacSafari ->
+            "ManualMacSafari"
+
+        Pwa.ManualAndroidMenu ->
+            "ManualAndroidMenu"
+
+        Pwa.AlreadyInstalledInBrowser ->
+            "AlreadyInstalledInBrowser"
+
+        Pwa.NoInstallHint ->
+            "NoInstallHint"
