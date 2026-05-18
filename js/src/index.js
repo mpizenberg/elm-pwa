@@ -127,7 +127,14 @@ export function evaluateInstallHint(options) {
     if (!options.requireStartUrlParam) return "launchedAsInstalled";
     if (consumeStartUrlParam(options.requireStartUrlParam))
       return "launchedAsInstalled";
-    // chrome-less webview without the param → fall through
+    // Param missing. Chromium-based in-app WebViews (Discord, Slack, …) can
+    // fake a standalone display mode — that's what the param is meant to
+    // catch. Real Safari windows can't be spoofed that way, and Safari
+    // historically ignored manifest `start_url` (iOS < 16.4; macOS "Add to
+    // Dock" bookmarks the visible URL), so trust the standalone signal there.
+    if (navigator.standalone === true || isIosSafari() || isMacSafari())
+      return "launchedAsInstalled";
+    // Otherwise fall through — likely a chrome-less in-app webview.
   }
 
   if (isInAppBrowserFn(ua)) return "noInstallHint";

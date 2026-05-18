@@ -614,9 +614,13 @@ can't leak it.
 
 Caveats:
 
-- iOS Safari < 16.4 ignores manifest `start_url` for Add to Home Screen; the
-  param won't be present on home-screen launches. Modern iOS (16.4+, March
-  2023) respects it.
+- The param is only enforced when the package can't otherwise be confident
+  the browser is real Safari. On iOS/iPadOS Safari and macOS Safari,
+  `LaunchedAsInstalled` is reported on display-mode alone even without the
+  param — because chrome-less in-app WebViews (the spoofing case) are
+  Chromium-based, not Safari. This matters in practice for macOS Safari,
+  which bookmarks the visible URL on "Add to Dock" and ignores the manifest's
+  `start_url`, and for iOS Safari < 16.4 which did the same.
 - Strip-from-URL keeps the user's other query params intact, but a service
   worker that uses `Response.redirect` on the initial navigation could drop
   the param before the page reads it — verify your SW preserves
