@@ -420,7 +420,7 @@ viewInstallButton hint =
 
         Pwa.ManualAndroidMenu ->
             span [ class "install-hint" ]
-                [ text "To install: open the browser menu and tap \"Install app\"" ]
+                [ text "To install: open the browser menu and tap \"Add to Home screen\"" ]
 
         Pwa.NoInstallHint ->
             text ""

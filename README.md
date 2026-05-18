@@ -524,7 +524,7 @@ viewInstallButton hint =
             text "Click Share → Add to Dock"
 
         Pwa.ManualAndroidMenu ->
-            text "Open the browser menu → Install app"
+            text "Open the browser menu → Add to Home screen"
 
         Pwa.AlreadyInstalledInBrowser ->
             text "App is installed — open it from your home screen"

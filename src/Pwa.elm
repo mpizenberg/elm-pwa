@@ -103,9 +103,9 @@ type Event
     user to tap **Share** → **Add to Home Screen**.
   - `ManualMacSafari` — macOS Safari 17+ (Sonoma). Tell the user to click
     **Share** → **Add to Dock**.
-  - `ManualAndroidMenu` — Android Firefox or similar Chromium browser that
-    didn't fire `beforeinstallprompt`. Tell the user to open the browser
-    menu and pick **Install app** / **Add to Home screen**.
+  - `ManualAndroidMenu` — Android Firefox or similar browser that didn't
+    fire `beforeinstallprompt`. Tell the user to open the browser menu and
+    pick **Add to Home screen** (the exact label varies by browser).
   - `AlreadyInstalledInBrowser` — `getInstalledRelatedApps` reports the PWA
     is installed but the user is viewing the site in the browser. Tell the
     user to open it from their home screen. Chromium only.
