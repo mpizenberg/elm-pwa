@@ -136,17 +136,17 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 
 **Events** received via `pwaIn`:
 
-| Event                                                  | Description                                                       |
-| ------------------------------------------------------ | ----------------------------------------------------------------- |
-| `ConnectionChanged Bool`                               | Device went online (`True`) or offline (`False`)                  |
-| `UpdateAvailable`                                      | A new service worker is installed and waiting                     |
-| `InstallAvailable`                                     | The browser's install prompt can be triggered                     |
-| `Installed`                                            | The app was installed                                             |
+| Event                                                  | Description                                                                   |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `ConnectionChanged Bool`                               | Device went online (`True`) or offline (`False`)                              |
+| `UpdateAvailable`                                      | A new service worker is installed and waiting                                 |
+| `InstallAvailable`                                     | The browser's install prompt can be triggered                                 |
+| `Installed`                                            | The app was installed                                                         |
 | `InstalledInBrowser`                                   | PWA is installed but user is browsing the site in the browser (Chromium only) |
-| `NotificationPermissionChanged NotificationPermission` | Notification permission state changed                             |
-| `PushSubscription Value`                               | Active push subscription (opaque JSON to forward to your backend) |
-| `PushUnsubscribed`                                     | Push subscription was removed                                     |
-| `NotificationClicked Value`                            | A push notification was clicked, carrying the notification's `data` payload |
+| `NotificationPermissionChanged NotificationPermission` | Notification permission state changed                                         |
+| `PushSubscription Value`                               | Active push subscription (opaque JSON to forward to your backend)             |
+| `PushUnsubscribed`                                     | Push subscription was removed                                                 |
+| `NotificationClicked Value`                            | A push notification was clicked, carrying the notification's `data` payload   |
 
 **Commands** sent via `pwaOut`:
 
@@ -181,11 +181,11 @@ init({
 Synchronous helpers for values that are fixed at page load. Compute them
 before `Elm.Main.init` and pass the booleans through flags.
 
-| Helper                          | Returns | Description                                                                                                                                                       |
-| ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isStandalone()`                | Bool    | Page is launched as an installed PWA (`display-mode: standalone` or Safari's `navigator.standalone`).                                                             |
-| `iosInstallHint(options?)`      | Bool    | Show an iOS "Add to Home Screen" hint: running on iOS/iPadOS Safari, not already standalone, and not inside a known in-app browser (Facebook, Instagram, …).      |
-| `defaultIsInAppBrowser(ua)`     | Bool    | The default in-app browser UA detector used by `iosInstallHint`. Exported so consumers can compose it with their own additions.                                   |
+| Helper                      | Returns | Description                                                                                                                                                  |
+| --------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `isStandalone()`            | Bool    | Page is launched as an installed PWA (`display-mode: standalone` or Safari's `navigator.standalone`).                                                        |
+| `iosInstallHint(options?)`  | Bool    | Show an iOS "Add to Home Screen" hint: running on iOS/iPadOS Safari, not already standalone, and not inside a known in-app browser (Facebook, Instagram, …). |
+| `defaultIsInAppBrowser(ua)` | Bool    | The default in-app browser UA detector used by `iosInstallHint`. Exported so consumers can compose it with their own additions.                              |
 
 `iosInstallHint` accepts an optional `{ isInAppBrowser: (ua) => boolean }`
 override for the in-app browser detector:
@@ -194,8 +194,7 @@ override for the in-app browser detector:
 import { iosInstallHint, defaultIsInAppBrowser } from "elm-pwa";
 
 iosInstallHint({
-  isInAppBrowser: (ua) =>
-    defaultIsInAppBrowser(ua) || /MyCorpApp/i.test(ua),
+  isInAppBrowser: (ua) => defaultIsInAppBrowser(ua) || /MyCorpApp/i.test(ua),
 });
 ```
 
