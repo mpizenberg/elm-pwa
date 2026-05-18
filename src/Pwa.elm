@@ -68,6 +68,11 @@ import Json.Encode as Encode
     handled natively by the browser (navigating directly to the URL) and this event
     will not fire.
 
+Note: launch-context values like "is this page standalone" and "should we show
+the iOS install hint" are exposed as synchronous JS helpers (`isStandalone()`,
+`iosInstallHint()`) rather than events. Compute them in your bootstrap JS and
+pass the booleans through Elm flags so they're available on the first render.
+
 -}
 type Event
     = ConnectionChanged Bool

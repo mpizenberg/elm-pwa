@@ -25,7 +25,7 @@ pushServerUrl =
 -- MAIN
 
 
-main : Program { isOnline : Bool, topic : String, isStandalone : Bool, platform : String } Model Msg
+main : Program { isOnline : Bool, topic : String, isStandalone : Bool, iosInstallHint : Bool } Model Msg
 main =
     Browser.element
         { init = init
@@ -48,20 +48,14 @@ subscriptions _ =
 -- MODEL
 
 
-type Platform
-    = IOS
-    | Android
-    | Desktop
-
-
 type alias Model =
     { isOnline : Bool
     , updateAvailable : Bool
     , installAvailable : Bool
-    , isInstalled : Bool
+    , isStandalone : Bool
     , justInstalled : Bool
     , installedInBrowser : Bool
-    , platform : Platform
+    , showIosHint : Bool
     , notificationPermission : Maybe Pwa.NotificationPermission
     , pushSubscription : Maybe Encode.Value
     , lastNotificationData : Maybe Decode.Value
@@ -77,28 +71,15 @@ type alias Model =
     }
 
 
-parsePlatform : String -> Platform
-parsePlatform str =
-    case str of
-        "ios" ->
-            IOS
-
-        "android" ->
-            Android
-
-        _ ->
-            Desktop
-
-
-init : { isOnline : Bool, topic : String, isStandalone : Bool, platform : String } -> ( Model, Cmd Msg )
+init : { isOnline : Bool, topic : String, isStandalone : Bool, iosInstallHint : Bool } -> ( Model, Cmd Msg )
 init flags =
     ( { isOnline = flags.isOnline
       , updateAvailable = False
       , installAvailable = False
-      , isInstalled = flags.isStandalone
+      , isStandalone = flags.isStandalone
       , justInstalled = False
       , installedInBrowser = False
-      , platform = parsePlatform flags.platform
+      , showIosHint = flags.iosInstallHint
       , notificationPermission = Nothing
       , pushSubscription = Nothing
       , lastNotificationData = Nothing
@@ -154,7 +135,7 @@ update msg model =
                     ( { model | installAvailable = True }, Cmd.none )
 
                 Pwa.Installed ->
-                    ( { model | installAvailable = False, isInstalled = True, justInstalled = True }, Cmd.none )
+                    ( { model | installAvailable = False, isStandalone = True, justInstalled = True }, Cmd.none )
 
                 Pwa.InstalledInBrowser ->
                     ( { model | installedInBrowser = True }, Cmd.none )
@@ -348,7 +329,7 @@ view model =
         , viewInstallBanner model.justInstalled
         , viewHeader model
         , viewMain model
-        , viewFooter
+        , viewFooter model
         ]
 
 
@@ -411,7 +392,7 @@ viewConnectionStatus isOnline =
 
 viewInstallButton : Model -> Html Msg
 viewInstallButton model =
-    if model.isInstalled then
+    if model.isStandalone then
         span [ class "status-badge installed" ] [ text "Installed" ]
 
     else if model.installAvailable then
@@ -421,17 +402,15 @@ viewInstallButton model =
         span [ class "install-hint" ]
             [ text "App is installed — open it from your home screen" ]
 
-    else
-        case model.platform of
-            IOS ->
-                span [ class "install-hint" ]
-                    [ text "To install: tap "
-                    , span [ class "share-icon" ] [ text "Share" ]
-                    , text " then \"Add to Home Screen\""
-                    ]
+    else if model.showIosHint then
+        span [ class "install-hint" ]
+            [ text "To install: tap "
+            , span [ class "share-icon" ] [ text "Share" ]
+            , text " then \"Add to Home Screen\""
+            ]
 
-            _ ->
-                text ""
+    else
+        text ""
 
 
 viewMain : Model -> Html Msg
@@ -460,7 +439,7 @@ viewPushNotifications : Model -> Html Msg
 viewPushNotifications model =
     section []
         [ h2 [] [ text "Push Notifications" ]
-        , if model.platform == IOS && not model.isInstalled then
+        , if model.showIosHint then
             p []
                 [ text "Push notifications on iOS require the app to be installed. Tap "
                 , span [ class "share-icon" ] [ text "Share" ]
@@ -589,10 +568,27 @@ onEnter msg =
         )
 
 
-viewFooter : Html Msg
-viewFooter =
+viewFooter : Model -> Html Msg
+viewFooter model =
     footer []
         [ text "Elm PWA Example — See "
         , a [ href "https://github.com/mpizenberg/elm-pwa" ] [ text "README" ]
         , text " for the full guide."
+        , p [ style "font-size" "0.85em", style "color" "#666", style "margin-top" "8px" ]
+            [ text
+                ("debug: isStandalone="
+                    ++ boolToString model.isStandalone
+                    ++ ", showIosHint="
+                    ++ boolToString model.showIosHint
+                )
+            ]
         ]
+
+
+boolToString : Bool -> String
+boolToString b =
+    if b then
+        "true"
+
+    else
+        "false"

@@ -1,4 +1,9 @@
-import { init } from "../../../js/src/index.js";
+import {
+  init,
+  isStandalone,
+  iosInstallHint,
+  /* defaultIsInAppBrowser, */
+} from "../../../js/src/index.js";
 
 var topic = localStorage.getItem("pushTopic");
 if (!topic) {
@@ -11,14 +16,13 @@ var app = window.Elm.Main.init({
   flags: {
     isOnline: navigator.onLine,
     topic: topic,
-    isStandalone:
-      window.matchMedia("(display-mode: standalone)").matches ||
-      navigator.standalone === true,
-    platform: /iPad|iPhone|iPod/.test(navigator.userAgent)
-      ? "ios"
-      : /Android/.test(navigator.userAgent)
-        ? "android"
-        : "desktop",
+    isStandalone: isStandalone(),
+    iosInstallHint: iosInstallHint(),
+    // Example: extend the default in-app browser list with a custom one.
+    // iosInstallHint: iosInstallHint({
+    //   isInAppBrowser: (ua) =>
+    //     defaultIsInAppBrowser(ua) || /MyCorpApp/i.test(ua),
+    // }),
   },
 });
 

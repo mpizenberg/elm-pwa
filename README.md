@@ -45,11 +45,15 @@ that handles all events.
 ### 3. Initialize the JS side
 
 ```javascript
-import { init } from "elm-pwa";
+import { init, isStandalone, iosInstallHint } from "elm-pwa";
 
 var app = Elm.Main.init({
   node: document.getElementById("app"),
-  flags: navigator.onLine,
+  flags: {
+    isOnline: navigator.onLine,
+    isStandalone: isStandalone(),
+    iosInstallHint: iosInstallHint(),
+  },
 });
 
 init({
@@ -59,6 +63,12 @@ init({
   },
 });
 ```
+
+`isStandalone()` and `iosInstallHint()` are launch-context booleans (they
+cannot change within a session), so they're passed through Elm flags rather
+than ports. This way the first render already knows whether to show the
+"Installed" badge or the iOS Share → Add to Home Screen hint, with no flash.
+See [Install Experience](#install-experience) for details.
 
 ### 4. Generate the service worker
 
@@ -163,6 +173,29 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 init({
   ports: { pwaIn, pwaOut }, // required: the two Elm port objects
   swUrl: "/sw.js", // optional: service worker URL (default: "/sw.js")
+});
+```
+
+### JS launch-context helpers
+
+Synchronous helpers for values that are fixed at page load. Compute them
+before `Elm.Main.init` and pass the booleans through flags.
+
+| Helper                          | Returns | Description                                                                                                                                                       |
+| ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isStandalone()`                | Bool    | Page is launched as an installed PWA (`display-mode: standalone` or Safari's `navigator.standalone`).                                                             |
+| `iosInstallHint(options?)`      | Bool    | Show an iOS "Add to Home Screen" hint: running on iOS/iPadOS Safari, not already standalone, and not inside a known in-app browser (Facebook, Instagram, …).      |
+| `defaultIsInAppBrowser(ua)`     | Bool    | The default in-app browser UA detector used by `iosInstallHint`. Exported so consumers can compose it with their own additions.                                   |
+
+`iosInstallHint` accepts an optional `{ isInAppBrowser: (ua) => boolean }`
+override for the in-app browser detector:
+
+```javascript
+import { iosInstallHint, defaultIsInAppBrowser } from "elm-pwa";
+
+iosInstallHint({
+  isInAppBrowser: (ua) =>
+    defaultIsInAppBrowser(ua) || /MyCorpApp/i.test(ua),
 });
 ```
 
@@ -450,8 +483,36 @@ to show your own install UI. The `init()` function captures this event and sends
 an `InstallAvailable` event to Elm. When the user clicks your install button,
 call `Pwa.requestInstall pwaOut` to show the browser's native install dialog.
 
-Browser support: Chromium only. Safari uses "Add to Home Screen" from the share menu.
+Browser support: Chromium only. Safari uses "Add to Home Screen" from the
+share menu — see [iOS install hint](#ios-install-hint) below.
 Firefox 143+ supports PWA install on Windows.
+
+### iOS install hint
+
+iOS Safari never fires `beforeinstallprompt`, and there is no programmatic
+API to trigger "Add to Home Screen" — the user must tap Safari's Share
+button and pick the action themselves. `navigator.share()` does **not** help:
+that action is only injected into the share sheet when Safari itself opens it
+from its own toolbar.
+
+The `iosInstallHint()` helper returns `true` exactly when a static hint is
+worth showing: iOS/iPadOS Safari, not already standalone, and not inside a
+WKWebView-based in-app browser (Facebook, Instagram, Gmail, …) where the
+"Add to Home Screen" action isn't available either. Pass the boolean as a
+flag and gate a banner on it in your view:
+
+```elm
+if model.iosInstallHint then
+    div [ class "banner" ]
+        [ text "Install: tap Share, then Add to Home Screen" ]
+else
+    text ""
+```
+
+iOS Chrome/Firefox/Edge are filtered out: they all run on WebKit but cannot
+add to the home screen. If your app is also embedded in a corporate or
+partner mobile webview, extend the in-app browser list (see
+[JS launch-context helpers](#js-launch-context-helpers)).
 
 ### Post-install message
 
@@ -546,6 +607,8 @@ then replay them when connectivity returns (via the `online` event or Background
 - No Background Sync or Periodic Background Sync
 - Storage may be purged if the PWA is unused for ~7 days
 - `beforeinstallprompt` not supported; install is only via Safari's share menu
+  (use [`iosInstallHint()`](#js-launch-context-helpers) to detect when to
+  surface a Share → Add to Home Screen hint)
 
 ## Lighthouse PWA Audit
 

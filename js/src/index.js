@@ -1,4 +1,65 @@
 /**
+ * Detect whether the page is launched as an installed PWA (display-mode:
+ * standalone, or Safari's `navigator.standalone`).
+ *
+ * Launch-context value: it does not change within a session. Compute once
+ * before `Elm.Main.init` and pass the result via flags.
+ *
+ * @returns {boolean}
+ */
+export function isStandalone() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    navigator.standalone === true
+  );
+}
+
+/**
+ * Default in-app browser detector. Returns true for known WKWebView-based
+ * apps on iOS that can't "Add to Home Screen" (the Safari share-sheet action
+ * is only injected when Safari itself opens the sheet).
+ *
+ * @param {string} userAgent
+ * @returns {boolean}
+ */
+export function defaultIsInAppBrowser(userAgent) {
+  return /FBAN|FBAV|Instagram|Line\/|Twitter|GSA\/|TikTok|Snapchat|Pinterest|LinkedIn/.test(
+    userAgent,
+  );
+}
+
+/**
+ * Detect whether to show an iOS "Add to Home Screen" hint. True iff:
+ *   - running on iOS / iPadOS Safari,
+ *   - not already launched as an installed PWA,
+ *   - not inside a known WKWebView-based in-app browser.
+ *
+ * Launch-context value: compute once before `Elm.Main.init` and pass the
+ * result via flags.
+ *
+ * @param {Object} [options]
+ * @param {(ua: string) => boolean} [options.isInAppBrowser] - Override the
+ *   default in-app browser detector. When omitted, `defaultIsInAppBrowser`
+ *   is used.
+ * @returns {boolean}
+ */
+export function iosInstallHint(options) {
+  var isInAppBrowserFn =
+    (options && options.isInAppBrowser) || defaultIsInAppBrowser;
+  var ua = navigator.userAgent;
+  var isIOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    // iPadOS 13+ reports as MacIntel; disambiguate via touch points.
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return (
+    isIOS &&
+    "standalone" in navigator &&
+    !isStandalone() &&
+    !isInAppBrowserFn(ua)
+  );
+}
+
+/**
  * Initialize PWA event wiring between browser APIs and Elm ports.
  *
  * @param {Object} options
@@ -128,10 +189,7 @@ export function init({ ports, swUrl }) {
 
   // --- Detect installed PWA opened in the browser ---
 
-  var isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    navigator.standalone === true;
-  if (!isStandalone && "getInstalledRelatedApps" in navigator) {
+  if (!isStandalone() && "getInstalledRelatedApps" in navigator) {
     navigator.getInstalledRelatedApps().then(function (apps) {
       if (apps.length > 0) {
         pwaIn.send({ tag: "installedInBrowser" });
