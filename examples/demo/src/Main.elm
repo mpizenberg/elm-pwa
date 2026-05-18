@@ -330,7 +330,7 @@ view model =
         , viewInstallBanner model.justInstalled
         , viewHeader model
         , viewMain model
-        , viewFooter model
+        , viewFooter model.installHint
         ]
 
 
@@ -581,14 +581,14 @@ onEnter msg =
         )
 
 
-viewFooter : Model -> Html Msg
-viewFooter model =
+viewFooter : Pwa.InstallHint -> Html Msg
+viewFooter hint =
     footer []
         [ text "Elm PWA Example — See "
         , a [ href "https://github.com/mpizenberg/elm-pwa" ] [ text "README" ]
         , text " for the full guide."
         , p [ style "font-size" "0.85em", style "color" "#666", style "margin-top" "8px" ]
-            [ text ("debug: installHint=" ++ installHintToString model.installHint) ]
+            [ text ("debug: installHint=" ++ installHintToString hint) ]
         ]
 
 
