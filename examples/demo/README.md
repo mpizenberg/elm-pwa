@@ -52,6 +52,8 @@ Bump `cacheName` in `build-sw.mjs` on each deploy to trigger the update flow.
    "App is installed — open it from your home screen"
 
 On iOS, the app shows a hint to use Safari's Share > "Add to Home Screen" instead.
+When opened inside an iOS in-app browser (Messenger, Instagram, …), where install
+isn't possible, it instead hints to open the page in Safari first.
 
 ## Running the example
 

@@ -422,6 +422,13 @@ viewInstallButton hint =
             span [ class "install-hint" ]
                 [ text "To install: open the browser menu and tap \"Add to Home screen\"" ]
 
+        Pwa.IosInAppBrowser ->
+            span [ class "install-hint" ]
+                [ text "To install: open this page in Safari first (tap "
+                , span [ class "share-icon" ] [ text "•••" ]
+                , text " then \"Open in Safari\"), then \"Add to Home Screen\""
+                ]
+
         Pwa.NoInstallHint ->
             text ""
 
@@ -609,6 +616,9 @@ installHintToString hint =
 
         Pwa.ManualAndroidMenu ->
             "ManualAndroidMenu"
+
+        Pwa.IosInAppBrowser ->
+            "IosInAppBrowser"
 
         Pwa.AlreadyInstalledInBrowser ->
             "AlreadyInstalledInBrowser"

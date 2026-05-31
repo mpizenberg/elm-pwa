@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs";
 writeFileSync(
   "static/sw.js",
   generateSW({
-    cacheName: "elm-pwa-v9",
+    cacheName: "elm-pwa-v10",
     precacheUrls: [
       "/",
       "/elm.js",

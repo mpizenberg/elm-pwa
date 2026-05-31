@@ -174,8 +174,9 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 | `ManualIosSafari`           | iOS/iPadOS Safari — show "Tap Share → Add to Home Screen"                                                        |
 | `ManualMacSafari`           | macOS Safari 17+ — show "Click Share → Add to Dock"                                                              |
 | `ManualAndroidMenu`         | Android browser without `beforeinstallprompt` (e.g. Firefox) — show "Open menu → Install app"                    |
+| `IosInAppBrowser`           | iOS in-app WebView (Messenger, Instagram, …) — show "Open in Safari first, then add to Home Screen"              |
 | `AlreadyInstalledInBrowser` | PWA is installed but viewed in a browser tab (Chromium `getInstalledRelatedApps`) — show "Open from home screen" |
-| `NoInstallHint`             | Unsupported context (iOS Chrome/Firefox/Edge, macOS Firefox, in-app browsers, …) — hide hints                    |
+| `NoInstallHint`             | Unsupported context (iOS Chrome/Firefox/Edge, macOS Firefox, non-iOS in-app browsers, …) — hide hints           |
 
 `Pwa.installHintFromString : String -> InstallHint` decodes the tag strings used by the JS side (for flag wiring).
 
@@ -210,8 +211,8 @@ init({
 
 `evaluateInstallHint` returns one of: `"launchedAsInstalled"`,
 `"installableNow"`, `"manualIosSafari"`, `"manualMacSafari"`,
-`"manualAndroidMenu"`, `"alreadyInstalledInBrowser"`, `"noInstallHint"`.
-Decode it on the Elm side with `Pwa.installHintFromString`.
+`"manualAndroidMenu"`, `"iosInAppBrowser"`, `"alreadyInstalledInBrowser"`,
+`"noInstallHint"`. Decode it on the Elm side with `Pwa.installHintFromString`.
 
 ```javascript
 import { evaluateInstallHint, defaultIsInAppBrowser } from "elm-pwa";

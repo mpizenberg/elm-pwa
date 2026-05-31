@@ -108,7 +108,7 @@ function consumeStartUrlParam(name) {
  *   "Discord WebView looks standalone" false positive.
  * @returns {string} One of: "launchedAsInstalled", "installableNow",
  *   "manualIosSafari", "manualMacSafari", "manualAndroidMenu",
- *   "alreadyInstalledInBrowser", "noInstallHint".
+ *   "iosInAppBrowser", "alreadyInstalledInBrowser", "noInstallHint".
  *
  *   Note: `evaluateInstallHint()` can never synchronously return
  *   `"installableNow"` (depends on `beforeinstallprompt` having fired) or
@@ -134,7 +134,11 @@ export function evaluateInstallHint(options) {
     // Otherwise fall through — likely a chrome-less in-app webview.
   }
 
-  if (isInAppBrowserFn(ua)) return "noInstallHint";
+  if (isInAppBrowserFn(ua))
+    // iOS in-app WebViews can't install PWAs and offer no native prompt, but
+    // the user can break out to Safari via the host app's "Open in Safari"
+    // menu — surface a hint telling them to. Other platforms: hide.
+    return detectIsIos() ? "iosInAppBrowser" : "noInstallHint";
   if (isIosSafari()) return "manualIosSafari";
   if (isMacSafari()) return "manualMacSafari";
   if (isAndroidFirefox()) return "manualAndroidMenu";

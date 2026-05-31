@@ -106,6 +106,9 @@ type Event
   - `ManualAndroidMenu` — Android Firefox or similar browser that didn't
     fire `beforeinstallprompt`. Tell the user to open the browser menu and
     pick **Add to Home screen** (the exact label varies by browser).
+  - `IosInAppBrowser` — an iOS in-app WebView (Messenger, Instagram, …) that
+    can't install PWAs and exposes no prompt. Tell the user to open the page
+    in Safari (via the host app's "Open in Safari" menu) and install there.
   - `AlreadyInstalledInBrowser` — `getInstalledRelatedApps` reports the PWA
     is installed but the user is viewing the site in the browser. Tell the
     user to open it from their home screen. Chromium only.
@@ -120,6 +123,7 @@ type InstallHint
     | ManualIosSafari
     | ManualMacSafari
     | ManualAndroidMenu
+    | IosInAppBrowser
     | AlreadyInstalledInBrowser
     | NoInstallHint
 
@@ -153,6 +157,9 @@ installHintFromString tag =
 
         "manualAndroidMenu" ->
             ManualAndroidMenu
+
+        "iosInAppBrowser" ->
+            IosInAppBrowser
 
         "alreadyInstalledInBrowser" ->
             AlreadyInstalledInBrowser
