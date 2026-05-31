@@ -424,10 +424,7 @@ viewInstallButton hint =
 
         Pwa.IosInAppBrowser ->
             span [ class "install-hint" ]
-                [ text "To install: open this page in Safari first (tap "
-                , span [ class "share-icon" ] [ text "•••" ]
-                , text " then \"Open in Safari\"), then \"Add to Home Screen\""
-                ]
+                [ text "To install: open this page in Safari first (tap ••• then \"Open in Safari\", or manually open this link in Safari)" ]
 
         Pwa.NoInstallHint ->
             text ""
