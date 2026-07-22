@@ -79,7 +79,13 @@ var SW_TEMPLATE = `
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(SW_CONFIG.cacheName).then(function (cache) {
-      return cache.addAll(SW_CONFIG.precacheUrls);
+      // Bypass the HTTP cache when precaching so a new SW version can't adopt a
+      // stale entry the browser happened to be holding.
+      return cache.addAll(
+        SW_CONFIG.precacheUrls.map(function (url) {
+          return new Request(url, { cache: "reload" });
+        })
+      );
     })
   );
 });
