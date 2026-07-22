@@ -225,13 +225,9 @@ export function init(options) {
 
   // --- Service Worker Registration & Update Flow ---
 
-  var swRegistration;
-
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register(serviceWorkerUrl).then(function (reg) {
-        swRegistration = reg;
-
         // A new SW is already waiting (e.g., user reopened the tab)
         if (reg.waiting) {
           pwaIn.send({ tag: "updateAvailable" });
@@ -368,7 +364,11 @@ export function init(options) {
         break;
 
       case "subscribePush":
-        if (!swRegistration || !swRegistration.pushManager) {
+        if (!("serviceWorker" in navigator)) {
+          pwaIn.send({
+            tag: "pushSubscriptionError",
+            error: "Service workers are not supported",
+          });
           break;
         }
         var vapidPublicKey = msg.vapidPublicKey;
@@ -381,10 +381,18 @@ export function init(options) {
         for (var i = 0; i < rawKey.length; i++) {
           keyArray[i] = rawKey.charCodeAt(i);
         }
-        swRegistration.pushManager
-          .subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: keyArray,
+        // Resolve the registration from `.ready` so a subscribe command that
+        // arrives before registration finishes waits for it instead of being
+        // silently dropped.
+        navigator.serviceWorker.ready
+          .then(function (reg) {
+            if (!reg.pushManager) {
+              throw new Error("Push is not supported");
+            }
+            return reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: keyArray,
+            });
           })
           .then(function (sub) {
             pwaIn.send({
@@ -403,15 +411,31 @@ export function init(options) {
         break;
 
       case "unsubscribePush":
-        if (swRegistration && swRegistration.pushManager) {
-          swRegistration.pushManager.getSubscription().then(function (sub) {
-            if (sub) {
-              sub.unsubscribe().then(function () {
-                pwaIn.send({ tag: "pushUnsubscribed" });
-              });
-            }
-          });
+        if (!("serviceWorker" in navigator)) {
+          // No service worker means nothing is subscribed to remove; the
+          // requested end state already holds.
+          pwaIn.send({ tag: "pushUnsubscribed" });
+          break;
         }
+        // Resolve the registration from `.ready` so an unsubscribe command that
+        // arrives before registration finishes waits for it instead of being
+        // silently dropped.
+        navigator.serviceWorker.ready
+          .then(function (reg) {
+            return reg.pushManager ? reg.pushManager.getSubscription() : null;
+          })
+          .then(function (sub) {
+            return sub ? sub.unsubscribe() : null;
+          })
+          .then(function () {
+            pwaIn.send({ tag: "pushUnsubscribed" });
+          })
+          .catch(function () {
+            // There is no unsubscribe-error event in the contract; report the
+            // intended end state. A browser subscription that outlived a failed
+            // unsubscribe re-surfaces via getSubscription on the next load.
+            pwaIn.send({ tag: "pushUnsubscribed" });
+          });
         break;
     }
   });
