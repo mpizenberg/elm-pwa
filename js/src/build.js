@@ -66,8 +66,8 @@ export function generateSW(config) {
 // Strategies:
 //   - Install: precache the URLs listed in SW_CONFIG.precacheUrls
 //   - Activate: delete old caches (any cache name !== SW_CONFIG.cacheName)
-//   - Fetch (navigation): serve the cached navigation fallback (SPA shell)
 //   - Fetch (routes): network-only and network-first prefix matching
+//   - Fetch (navigation): serve the cached navigation fallback (SPA shell)
 //   - Fetch (default): cache-first, falling back to network
 //   - Message "SKIP_WAITING": activate a waiting service worker immediately
 //   - Push: show notifications from push events
@@ -107,22 +107,13 @@ self.addEventListener("activate", function (event) {
   );
 });
 
-// Fetch: navigation fallback, route strategies, then cache-first default
+// Fetch: route strategies, navigation fallback, then cache-first default
 self.addEventListener("fetch", function (event) {
   // Only cache GET requests; let non-GET (POST, DELETE, etc.) pass through
   if (event.request.method !== "GET") return;
 
-  // Navigation requests: serve the cached app shell (Elm handles routing)
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      caches.match(SW_CONFIG.navigationFallback).then(function (cached) {
-        return cached || fetch(event.request);
-      })
-    );
-    return;
-  }
-
-  // Route-specific strategies (network-only checked first, then network-first)
+  // Route-specific strategies take precedence over the SPA navigation
+  // fallback, so server-rendered pages can opt out of the app shell.
   var pathname = new URL(event.request.url).pathname;
   for (var i = 0; i < SW_CONFIG.networkOnlyPrefixes.length; i++) {
     if (pathname.startsWith(SW_CONFIG.networkOnlyPrefixes[i])) {
@@ -149,6 +140,16 @@ self.addEventListener("fetch", function (event) {
       );
       return;
     }
+  }
+
+  // Navigation requests: serve the cached app shell (Elm handles routing)
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      caches.match(SW_CONFIG.navigationFallback).then(function (cached) {
+        return cached || fetch(event.request);
+      })
+    );
+    return;
   }
 
   // Default: cache-first

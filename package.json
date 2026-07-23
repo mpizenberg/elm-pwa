@@ -18,6 +18,7 @@
     "js/src"
   ],
   "scripts": {
+    "test": "node --test",
     "postinstall": "elm-tooling install"
   },
   "devDependencies": {

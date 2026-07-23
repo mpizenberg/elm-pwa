@@ -33,6 +33,7 @@ jobs:
       - run: npx elm make --docs docs.json
       - run: npx elm-format --validate src/
       - run: npx elm-review
+      - run: npm test
 
   examples:
     runs-on: ubuntu-latest
