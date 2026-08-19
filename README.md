@@ -164,6 +164,7 @@ See the [Web App Manifest](#web-app-manifest) section below for recommended fiel
 | `requestNotificationPermission pwaOut` | Requests notification permission from the user                   |
 | `subscribePush pwaOut vapidKey`        | Subscribes to push notifications with the given VAPID public key |
 | `unsubscribePush pwaOut`               | Unsubscribes from push notifications                             |
+| `closeNotifications pwaOut tag`        | Closes displayed notifications carrying that tag                 |
 
 **Types:**
 
@@ -300,6 +301,8 @@ Web Push is supported across all major browsers:
 3. **Send subscription to your backend** — forward the `PushSubscription` value to your server via HTTP. Your backend uses this to send push messages (via the Web Push protocol with your VAPID keys).
 
 4. **Handle notification clicks** — when the user clicks a notification, a `NotificationClicked` event arrives with the notification's `data` payload as an opaque `Value`. Your app can decode whatever fields your server included (e.g., `url`, `action`, custom metadata).
+
+5. **Close what the user has seen** — a click closes only the notification that was clicked. When several notifications share a `tag`, or when the user reaches the content another way, call `Pwa.closeNotifications pwaOut tag` to clear the rest from the lock screen.
 
 See the push notification handling in [`examples/demo/src/Main.elm`](https://github.com/mpizenberg/elm-pwa/blob/main/examples/demo/src/Main.elm)
 for a complete implementation.

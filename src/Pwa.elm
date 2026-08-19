@@ -3,8 +3,7 @@ module Pwa exposing
     , InstallHint(..), installHintFromString
     , NotificationPermission(..)
     , acceptUpdate, requestInstall
-    , requestNotificationPermission, subscribePush, unsubscribePush
-    , closeNotifications
+    , requestNotificationPermission, subscribePush, unsubscribePush, closeNotifications
     )
 
 {-| PWA integration for Elm apps.
@@ -49,7 +48,7 @@ Then wires them as follows:
 # Commands
 
 @docs acceptUpdate, requestInstall
-@docs requestNotificationPermission, subscribePush, unsubscribePush
+@docs requestNotificationPermission, subscribePush, unsubscribePush, closeNotifications
 
 -}
 
