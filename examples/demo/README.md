@@ -115,6 +115,11 @@ Fill in a title and body, click **Send**, and a system notification should appea
 Clicking it updates "Last Notification Click" in the app, displaying the full `data`
 payload that was attached to the notification.
 
+Fill in the tag field too, and **Close by tag** removes the notifications still
+carrying it — what an app does once the user has reached the content they point
+at, since clicking one notification closes only that one. Closing is
+fire-and-forget: no event comes back.
+
 You can also trigger it from the command line:
 
 ```sh

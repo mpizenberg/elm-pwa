@@ -114,6 +114,7 @@ type Msg
     | SetNotifyTag String
     | ToggleNotifySilent
     | SendTestNotification
+    | CloseNotifications
     | DismissInstallBanner
     | NotificationSent (Result Http.Error ())
 
@@ -229,6 +230,9 @@ update msg model =
 
         SendTestNotification ->
             ( model, sendTestNotification model.topic model.notifyTitle model.notifyBody model.notifyTag model.notifySilent )
+
+        CloseNotifications ->
+            ( model, Pwa.closeNotifications pwaOut model.notifyTag )
 
         NotificationSent (Ok _) ->
             ( { model | notifySent = Just True }, Cmd.none )
@@ -536,8 +540,16 @@ viewSendTestNotification model =
                     , div [] [ input [ type_ "text", placeholder "Body", value model.notifyBody, onInput SetNotifyBody ] [] ]
                     , div [] [ input [ type_ "text", placeholder "Tag (optional)", value model.notifyTag, onInput SetNotifyTag, onEnter SendTestNotification ] [] ]
                     , div [] [ label [] [ input [ type_ "checkbox", Html.Attributes.checked model.notifySilent, onClick ToggleNotifySilent ] [], text " Silent" ] ]
-                    , p [ style "font-size" "0.85em", style "color" "#666" ] [ text "Notifications with the same tag replace each other instead of stacking. The icon is set to /icons/icon-192.png from the web app manifest." ]
-                    , div [] [ button [ onClick SendTestNotification ] [ text "Send" ] ]
+                    , p [ style "font-size" "0.85em", style "color" "#666" ] [ text "Notifications with the same tag replace each other instead of stacking, and \"Close by tag\" dismisses whichever are still on screen. The icon is set to /icons/icon-192.png from the web app manifest." ]
+                    , div []
+                        [ button [ onClick SendTestNotification ] [ text "Send" ]
+                        , button
+                            [ onClick CloseNotifications
+                            , disabled (String.isEmpty model.notifyTag)
+                            , style "margin-left" "8px"
+                            ]
+                            [ text "Close by tag" ]
+                        ]
                     ]
                 , case model.notifySent of
                     Just True ->
