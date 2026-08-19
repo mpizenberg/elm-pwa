@@ -296,7 +296,7 @@ Web Push is supported across all major browsers:
 
 1. **Request permission** — call `Pwa.requestNotificationPermission pwaOut`. A `NotificationPermissionChanged` event arrives with the result.
 
-2. **Subscribe** — once permission is `Granted`, call `Pwa.subscribePush pwaOut yourVapidPublicKey`. A `PushSubscription` event arrives with an opaque JSON value containing the push endpoint and keys.
+2. **Subscribe** — once permission is `Granted`, call `Pwa.subscribePush pwaOut yourVapidPublicKey`. A `PushSubscription` event arrives with an opaque JSON value containing the push endpoint and keys. Calling it with a different VAPID key than the device is subscribed under replaces the subscription, so moving to another push server does not strand already-subscribed users — the new `PushSubscription` carries a new endpoint, which your backend must re-register.
 
 3. **Send subscription to your backend** — forward the `PushSubscription` value to your server via HTTP. Your backend uses this to send push messages (via the Web Push protocol with your VAPID keys).
 

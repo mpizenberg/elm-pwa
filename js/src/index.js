@@ -389,9 +389,26 @@ export function init(options) {
             if (!reg.pushManager) {
               throw new Error("Push is not supported");
             }
-            return reg.pushManager.subscribe({
+            var options = {
               userVisibleOnly: true,
               applicationServerKey: keyArray,
+            };
+            return reg.pushManager.subscribe(options).catch(function (err) {
+              // A subscription is bound to the key it was created with, and
+              // subscribing under a different one rejects rather than replacing
+              // it. Without this the app would be stuck on a subscription its
+              // new server cannot push to, with no way back from inside the app.
+              if (!err || err.name !== "InvalidStateError") {
+                throw err;
+              }
+              return reg.pushManager
+                .getSubscription()
+                .then(function (sub) {
+                  return sub ? sub.unsubscribe() : null;
+                })
+                .then(function () {
+                  return reg.pushManager.subscribe(options);
+                });
             });
           })
           .then(function (sub) {
