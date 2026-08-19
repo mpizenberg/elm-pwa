@@ -4,6 +4,7 @@ module Pwa exposing
     , NotificationPermission(..)
     , acceptUpdate, requestInstall
     , requestNotificationPermission, subscribePush, unsubscribePush
+    , closeNotifications
     )
 
 {-| PWA integration for Elm apps.
@@ -336,3 +337,24 @@ On success, a `PushUnsubscribed` event arrives.
 unsubscribePush : (Encode.Value -> Cmd msg) -> Cmd msg
 unsubscribePush pwaOut =
     pwaOut (Encode.object [ ( "tag", Encode.string "unsubscribePush" ) ])
+
+
+{-| Close any displayed notifications carrying the given notification tag,
+e.g. after the user has opened the content the notifications pointed at.
+Resolves the registration from `.ready`, so it is safe to call early. No
+event is emitted: closing is fire-and-forget.
+
+    update msg model =
+        case msg of
+            GroupOpened tag ->
+                ( model, Pwa.closeNotifications pwaOut tag )
+
+-}
+closeNotifications : (Encode.Value -> Cmd msg) -> String -> Cmd msg
+closeNotifications pwaOut notificationTag =
+    pwaOut
+        (Encode.object
+            [ ( "tag", Encode.string "closeNotifications" )
+            , ( "notificationTag", Encode.string notificationTag )
+            ]
+        )

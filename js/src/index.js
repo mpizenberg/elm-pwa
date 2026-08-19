@@ -410,6 +410,26 @@ export function init(options) {
           });
         break;
 
+      case "closeNotifications":
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.ready
+            .then(function (reg) {
+              return reg.getNotifications
+                ? reg.getNotifications({ tag: msg.notificationTag })
+                : [];
+            })
+            .then(function (notifications) {
+              notifications.forEach(function (n) {
+                n.close();
+              });
+            })
+            .catch(function () {
+              // Closing is fire-and-forget; a failure leaves stale
+              // notifications, which the OS reaps on its own.
+            });
+        }
+        break;
+
       case "unsubscribePush":
         if (!("serviceWorker" in navigator)) {
           // No service worker means nothing is subscribed to remove; the
