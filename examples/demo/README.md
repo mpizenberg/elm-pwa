@@ -141,7 +141,7 @@ curl -X POST https://push.dokploy.zidev.ovh/notify \
 ### Troubleshooting
 
 - **No notification appears** — check macOS System Settings > Notifications > Chrome is enabled, then restart Chrome
-- **"Registration failed - push service error"** — the active service worker is outdated (no push handler). Unregister it in DevTools > Application > Service Workers, then reload
+- **"Registration failed - push service error"** — the browser itself cannot register with Google's push service, so every site fails instantly and clearing site data changes nothing. In Brave, enable Settings > Privacy > "Use Google services for push messaging" and relaunch; Ungoogled Chromium has no push service at all. Check `chrome://gcm-internals` (GCM Enabled, connection state) to confirm
 - **Subscribe button does nothing** — the service worker hasn't finished registering yet. Wait a moment and retry, or check DevTools Console for errors
 
 ## Project structure
