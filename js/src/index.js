@@ -146,6 +146,47 @@ export function evaluateInstallHint(options) {
 }
 
 /**
+ * Observe a registration for an installed update. Registration state, rather
+ * than the current page's controller, distinguishes an update from first
+ * install: Firefox deliberately leaves a force-refreshed document uncontrolled.
+ *
+ * @param {ServiceWorkerRegistration} registration
+ * @param {() => void} onUpdate
+ */
+export function observeServiceWorkerUpdates(registration, onUpdate) {
+  var announced = false;
+
+  function announce() {
+    if (announced) return;
+    announced = true;
+    onUpdate();
+  }
+
+  function observe(worker) {
+    if (!worker) return;
+
+    function stateChanged() {
+      if (
+        worker.state === "installed" &&
+        (registration.waiting === worker ||
+          (registration.active && registration.active !== worker))
+      ) {
+        announce();
+      }
+    }
+
+    stateChanged();
+    worker.addEventListener("statechange", stateChanged);
+  }
+
+  if (registration.waiting) announce();
+  observe(registration.installing);
+  registration.addEventListener("updatefound", function () {
+    observe(registration.installing);
+  });
+}
+
+/**
  * Initialize PWA event wiring between browser APIs and Elm ports.
  *
  * @param {Object} options
@@ -228,23 +269,12 @@ export function init(options) {
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register(serviceWorkerUrl).then(function (reg) {
-        // A new SW is already waiting (e.g., user reopened the tab)
-        if (reg.waiting) {
+        observeServiceWorkerUpdates(reg, function () {
           pwaIn.send({ tag: "updateAvailable" });
-        }
-
-        // Detect new service workers becoming available
-        reg.addEventListener("updatefound", function () {
-          var newWorker = reg.installing;
-          newWorker.addEventListener("statechange", function () {
-            if (
-              newWorker.state === "installed" &&
-              navigator.serviceWorker.controller
-            ) {
-              pwaIn.send({ tag: "updateAvailable" });
-            }
-          });
         });
+        // `register` can return an existing registration without starting a
+        // script check. Observe first so a fast update cannot outrun the listener.
+        reg.update().catch(function () {});
 
         // Check for updates periodically (SPAs stay on the same page)
         setInterval(
