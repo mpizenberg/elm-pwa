@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { observeServiceWorkerUpdates } from "../src/index.js";
+import {
+  applyWaitingWorker,
+  observeServiceWorkerUpdates,
+} from "../src/index.js";
 
 function worker(initialState = "installing") {
   const listeners = new Map();
   return {
     state: initialState,
+    messages: [],
     addEventListener(type, listener) {
       listeners.set(type, listener);
+    },
+    postMessage(message) {
+      this.messages.push(message);
     },
     moveTo(state) {
       this.state = state;
@@ -75,4 +82,28 @@ test("observes an update found after registration resolved", () => {
   installing.moveTo("installed");
 
   assert.equal(announcements, 1);
+});
+
+test("applying an update reloads when the waiting worker activates", () => {
+  const waiting = worker("installed");
+  const reg = registration({ active: worker("activated"), waiting });
+  let reloads = 0;
+
+  applyWaitingWorker(reg, () => reloads++);
+
+  assert.deepEqual(waiting.messages, [{ type: "SKIP_WAITING" }]);
+  assert.equal(reloads, 0);
+  waiting.moveTo("activating");
+  assert.equal(reloads, 0);
+  waiting.moveTo("activated");
+  assert.equal(reloads, 1);
+});
+
+test("applying an update without a waiting worker does nothing", () => {
+  const reg = registration({ active: worker("activated") });
+  let reloads = 0;
+
+  applyWaitingWorker(reg, () => reloads++);
+
+  assert.equal(reloads, 0);
 });

@@ -187,6 +187,25 @@ export function observeServiceWorkerUpdates(registration, onUpdate) {
 }
 
 /**
+ * Activate a registration's waiting worker and reload once it is running.
+ * `controllerchange` covers controlled pages, but a force-refreshed document
+ * is uncontrolled and never receives one, so the worker's own transition to
+ * "activated" is what triggers the reload here.
+ *
+ * @param {ServiceWorkerRegistration} registration
+ * @param {() => void} reload
+ */
+export function applyWaitingWorker(registration, reload) {
+  var worker = registration.waiting;
+  if (!worker) return;
+
+  worker.addEventListener("statechange", function () {
+    if (worker.state === "activated") reload();
+  });
+  worker.postMessage({ type: "SKIP_WAITING" });
+}
+
+/**
  * Initialize PWA event wiring between browser APIs and Elm ports.
  *
  * @param {Object} options
@@ -266,6 +285,15 @@ export function init(options) {
 
   // --- Service Worker Registration & Update Flow ---
 
+  // Shared by controllerchange and acceptUpdate: on a controlled page an
+  // accepted update fires both, and the swap must reload the page only once.
+  var refreshing = false;
+  function reloadOnce() {
+    if (refreshing) return;
+    refreshing = true;
+    location.reload();
+  }
+
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register(serviceWorkerUrl).then(function (reg) {
@@ -305,13 +333,7 @@ export function init(options) {
       });
 
       // Reload when the new SW takes control
-      var refreshing = false;
-      navigator.serviceWorker.addEventListener("controllerchange", function () {
-        if (!refreshing) {
-          refreshing = true;
-          location.reload();
-        }
-      });
+      navigator.serviceWorker.addEventListener("controllerchange", reloadOnce);
 
       // Listen for messages from the service worker (e.g., notification clicks)
       navigator.serviceWorker.addEventListener("message", function (event) {
@@ -357,9 +379,7 @@ export function init(options) {
       case "acceptUpdate":
         if ("serviceWorker" in navigator) {
           navigator.serviceWorker.getRegistration().then(function (reg) {
-            if (reg && reg.waiting) {
-              reg.waiting.postMessage({ type: "SKIP_WAITING" });
-            }
+            if (reg) applyWaitingWorker(reg, reloadOnce);
           });
         }
         break;
