@@ -66,7 +66,22 @@ test("does not announce the first service-worker install", () => {
   let announcements = 0;
 
   observeServiceWorkerUpdates(reg, () => announcements++);
+  // The install algorithm moves even the first worker through `waiting`
+  // before activation. The registration's live state is therefore not proof
+  // that this worker replaces an older version.
+  reg.installing = null;
+  reg.waiting = installing;
   installing.moveTo("installed");
+
+  assert.equal(announcements, 0);
+});
+
+test("does not announce a first worker already waiting", () => {
+  const waiting = worker("installed");
+  const reg = registration({ waiting });
+  let announcements = 0;
+
+  observeServiceWorkerUpdates(reg, () => announcements++);
 
   assert.equal(announcements, 0);
 });

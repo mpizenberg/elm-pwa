@@ -165,12 +165,15 @@ export function observeServiceWorkerUpdates(registration, onUpdate) {
   function observe(worker) {
     if (!worker) return;
 
+    // Snapshot the incumbent before installation completes: a first worker
+    // temporarily occupies `waiting` too, so that live state cannot distinguish
+    // an initial installation from a replacement.
+    var replacesActiveWorker = Boolean(
+      registration.active && registration.active !== worker,
+    );
+
     function stateChanged() {
-      if (
-        worker.state === "installed" &&
-        (registration.waiting === worker ||
-          (registration.active && registration.active !== worker))
-      ) {
+      if (worker.state === "installed" && replacesActiveWorker) {
         announce();
       }
     }
@@ -179,7 +182,13 @@ export function observeServiceWorkerUpdates(registration, onUpdate) {
     worker.addEventListener("statechange", stateChanged);
   }
 
-  if (registration.waiting) announce();
+  if (
+    registration.waiting &&
+    registration.active &&
+    registration.active !== registration.waiting
+  ) {
+    announce();
+  }
   observe(registration.installing);
   registration.addEventListener("updatefound", function () {
     observe(registration.installing);
